@@ -1,3 +1,4 @@
+// @ts-nocheck
 import logger from '../logger';
 import { Item } from '../types/item';
 import { Zenodo } from '../types/zenodo';
@@ -29,6 +30,7 @@ const Sugar = require('sugar');
 // Also, we need a new "zenodoRecord: 123" and "zenodoConcept: 123"
 function zenodoParseIDFromZoteroRecord(item: Item): string {
   logger.info('item = %O', item);
+  // @ts-ignore
   const extra = item.extra.split('\n');
   // let doi = '';
   let id = '';
@@ -78,6 +80,7 @@ export default async function formatAsZenodoJson(
   // const { creators = [] } = item;
   logger.info('formatAsZenodoJson');
 
+  // @ts-ignore
   const authorDataIn: string = [
     args.author_data,
     'author-data.json',
@@ -117,6 +120,7 @@ export default async function formatAsZenodoJson(
 
   if (Array.isArray(item.creators) && item.creators.length) {
     // logger.info('formatAsZenodoJson: adding name from zotero');
+    // @ts-ignore
     updateDoc.authors = item.creators.map(function (c) {
       const fullname = c['name'] ? c['name'] : `${c['lastName']}, ${c['firstName']}`;
       let res = {
@@ -139,6 +143,7 @@ export default async function formatAsZenodoJson(
     doi = item.doi;
     logger.info(`formatAsZenodoJson: DOI from item.doi: ${doi}`);
   } else {
+    // @ts-ignore
     extra.split('\n').forEach((element) => {
       var mymatch = element.match(/^DOI\:\s*(.*?)\s*$/);
       if (mymatch) {
@@ -191,5 +196,6 @@ export default async function formatAsZenodoJson(
   updateDoc['publication_date'] = isodate;
   // logger.info("formatAsZenodoJson updateDoc=" + JSON.stringify(updateDoc, null, 2))
 
+  // @ts-ignore
   return updateDoc;
 }

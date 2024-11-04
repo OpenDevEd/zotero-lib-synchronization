@@ -1,20 +1,191 @@
-// import path from 'path';
+import * as fs from 'fs';
 
-import { AlsoKnownAsDB, NewAlsoKnownAsDB, NewItemDB, UpdateAlsoKnownAsDB, UpdateItemDB } from '../types/db';
-import { GroupData } from '../types/group';
-import { Item, ItemResponse } from '../types/item';
+import { Item } from '../types/item';
+import { db } from '../db/index';
+import { eq, getTableColumns, inArray, InferInsertModel, InferSelectModel, sql } from 'drizzle-orm';
+import { group } from '../db/schema/tables/group';
+import { item } from '../db/schema/tables/item';
+import { collection } from '../db/schema/tables/collection';
+import { itemToCollection } from '../db/schema/tables/itemToCollection';
+import { columns } from '../db/schema/views/columns';
+import { tag } from '../db/schema/tables/tag';
+import { itemToTag } from '../db/schema/tables/itemToTag';
+import { PgTable } from 'drizzle-orm/pg-core';
+import { language } from '../db/schema/tables/language';
+
+const BATCH_SIZE = 500;
+
+export type GroupTableWrite = InferInsertModel<typeof group>;
+export type ItemTableWrite = InferInsertModel<typeof item>;
+export type CollectionTableWrite = InferInsertModel<typeof collection>;
+export type ItemToCollectionTableWrite = InferInsertModel<typeof itemToCollection>;
+export type TagTableWrite = InferInsertModel<typeof tag>;
+export type ItemToTagTableWrite = InferInsertModel<typeof itemToTag>;
+export type LanguageTableWrite = InferInsertModel<typeof language>;
+
+export type GroupTableRead = InferSelectModel<typeof group>;
+export type ItemTableRead = InferSelectModel<typeof item>;
+export type CollectionTableRead = InferSelectModel<typeof collection>;
+export type ItemToCollectionTableRead = InferSelectModel<typeof itemToCollection>;
+export type TagTableRead = InferSelectModel<typeof tag>;
+export type ItemToTagTableRead = InferSelectModel<typeof itemToTag>;
+export type LanguageTableRead = InferSelectModel<typeof language>;
+
+/**
+ * Type definition for a Zotero item with all its properties
+ */
+export type ZoteroItem = {
+  key: string;
+  version: number;
+  library: {
+    type: string;
+    id: number;
+    name: string;
+    links: {
+      alternate: {
+        href: string;
+        type: string;
+      };
+    };
+  };
+  links: {
+    self: {
+      href: string;
+      type: string;
+    };
+    alternate: {
+      href: string;
+      type: string;
+    };
+    up?: {
+      href: string;
+      type: string;
+    };
+  };
+  meta: {
+    createdByUser: {
+      id: number;
+      username: string;
+      name: string;
+      links: {
+        alternate: {
+          href: string;
+          type: string;
+        };
+      };
+    };
+    creatorSummary?: string;
+    parsedDate?: string;
+    numChildren?: number;
+  };
+  data: {
+    key: string;
+    version: number;
+    itemType: string;
+    title?: string;
+    parentItem?: string;
+    creators?: Array<{
+      creatorType: string;
+      firstName: string;
+      lastName: string;
+    }>;
+    abstractNote?: string;
+    deleted?: number;
+    reportNumber?: string;
+    reportType?: string;
+    seriesTitle?: string;
+    place?: string;
+    institution?: string;
+    date?: string;
+    pages?: string;
+    language?: string;
+    shortTitle?: string;
+    url?: string;
+    accessDate?: string;
+    archive?: string;
+    archiveLocation?: string;
+    libraryCatalog?: string;
+    callNumber?: string;
+    rights?: string;
+    extra?: string;
+    tags: Array<{
+      tag: string;
+    }>;
+    collections: string[];
+    relations?: {};
+    dateAdded: string;
+    dateModified: string;
+    note?: string;
+    linkMode?: string;
+    contentType?: string;
+    charset?: string;
+  };
+};
+
+/**
+ * Type definition for a Zotero group data structure
+ */
+export type ZoteroGroup = {
+  id: number;
+  version: number;
+  links: {
+    self: {
+      href: string;
+      type: string;
+    };
+    alternate: {
+      href: string;
+      type: string;
+    };
+  };
+  meta: {
+    created: string;
+    lastModified: string;
+    numItems: number;
+  };
+  data: {
+    id: number;
+    version: number;
+    name: string;
+    owner: number;
+    type: string;
+    description: string;
+    url: string;
+    libraryEditing: string;
+    libraryReading: string;
+    fileEditing: string;
+    members: number[];
+  };
+};
+
+const itemColumns = Object.values(getTableColumns(item)).map((col) => col.name);
 
 /**
  * Retrieves all groups from the database.
- * @returns {Promise<Group[]>} A promise that resolves to an array of groups.
+ * @returns {Promise<GroupTableRead[]>} A promise that resolves to an array of groups.
  */
-export async function getAllGroups() {
-  const { PrismaClient } = require('@prisma/client');
-  const prisma = new PrismaClient();
+export async function getAllGroups(): Promise<GroupTableRead[]> {
+  const groups = await db.query.group.findMany();
 
-  const groups = await prisma.groups.findMany();
-  //await saveGroup();
   return groups;
+}
+
+/**
+ * Creates a group object from a Zotero group
+ * @param {ZoteroGroup} group - The ZoteroGroup to create a group from
+ * @returns {GroupTableWrite} The created group object
+ */
+function createGroup(group: ZoteroGroup): GroupTableWrite {
+  const obj = {} as GroupTableWrite;
+  obj.externalId = Number(group.id);
+  obj.version = group.version;
+  obj.numItems = group.meta.numItems || 0;
+  obj.description = group.data.description;
+  obj.itemsVersion = group.data.version;
+  obj.name = group.data.name;
+  obj.type = group.data.type;
+  obj.url = group.data.url;
+  return obj;
 }
 
 /**
@@ -24,183 +195,218 @@ export async function getAllGroups() {
  * @param {Array<Object>} groupData - The group data to be saved.
  * @returns {Promise<void>} - A promise that resolves when the group data is saved.
  */
-export async function saveGroup(groupData: GroupData[]): Promise<void> {
-  const { PrismaClient } = require('@prisma/client');
-  const prisma = new PrismaClient();
+export async function saveGroup(groupData: any): Promise<void> {
+  fs.writeFileSync('groupData.json', JSON.stringify(groupData, null, 2));
 
-  const groups = await prisma.groups.findMany();
-  const groupIds = groups.map((group) => group.id);
-  for (const group of groupData) {
-    const { id, version } = group;
-    if (groupIds.includes(id)) {
-      await prisma.groups.update({
-        where: {
-          id: id,
-        },
-        data: {
-          version: parseInt(version as string),
+  const groupTable = groupData.map(createGroup);
 
-          updatedAt: new Date(),
-        },
-      });
-    } else {
-      await prisma.groups.create({
-        data: {
-          id: id,
-          version: parseInt(version as string),
-          itemsVersion: 0,
+  await db
+    .insert(group)
+    .values(groupTable)
+    .onConflictDoUpdate({
+      target: [group.externalId],
+      set: onConflictDoUpdateExcept(group, ['id', 'createdAt', 'externalId', 'itemsVersion']),
+    });
+}
 
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      });
+/**
+ * Matches and normalizes an item's type with the available column types
+ * @param {ZoteroItem} item - The item to match type for
+ * @returns {boolean} True if a matching type was found and set, false otherwise
+ */
+function matchItemType(item: ZoteroItem): boolean {
+  const itemType = Object.keys(columns).find(
+    (itemType) => itemType.toLowerCase() === item.data.itemType.toLowerCase(),
+  ) as string;
+  if (!itemType) return false;
+  item.data.itemType = itemType;
+  return true;
+}
+
+/**
+ * Creates an item object from a Zotero item
+ * @param {ZoteroItem} item - The Zotero item to create from
+ * @returns {ItemTableRead} The created item object
+ */
+function createItem(item: ZoteroItem): ItemTableRead {
+  const obj = {} as ItemTableWrite;
+  obj.key = item.key;
+  obj.version = item.version;
+  obj.groupExternalId = Number(item.library.id);
+  itemColumns.forEach((column) => {
+    if (column == "relations") {
+      if (item.data.relations && Object.keys(item.data.relations).length > 0) {
+        obj.relations = JSON.stringify(item.data.relations);
+      }
     }
-  }
-  // if (group) {
-  //   await prisma.groups.update({
-  //     where: {
-  //       id: groupData.id,
-  //     },
-  //     data: {
-  //       version: parseInt(groupData.version),
-  //       updatedAt: new Date(),
-  //     },
-  //   });
-  // } else {
-  //   await prisma.groups.create({
-  //     data: {
-  //       id: groupData.id,
-  //       version: parseInt(groupData.version),
-  //       itemsVersion: 0,
-  //       createdAt: new Date(),
-  //       updatedAt: new Date(),
-  //     },
-  //   });
-  // }
+    else if (column === 'tags') {
+      // convert tags to string array 
+      obj.tags = item.data.tags.map(tag => tag.tag);
+    }
+    else if (column in item.data) {
+      obj[column] = item.data[column];
+    }
+    });  
+  if (item.data.language && item.data.language.length > 0)
+    obj.languageName = item.data.language;
+  return obj as ItemTableRead;
 }
 
-// get all collections
-
-// let collections = [];
-//@ts-ignore
-// async function insertCollections(prisma) {
-//   // insert multiple rows of collections
-//   await prisma.collections.createMany({
-//     data: collections,
-//     skipDuplicates: true,
-//   });
-//   collections = [];
+// /**
+//  * Creates a collection object from a collection key
+//  * @param {string} collection - The collection key
+//  * @returns {CollectionTableRead} The created collection object
+//  */
+// function createCollection(collection: ZoteroItem['data']['collections'][number]): CollectionTableRead {
+//   const obj = {} as CollectionTableWrite;
+//   obj.key = collection;
+//   return obj as CollectionTableRead;
 // }
-let newItems = [];
-//@ts-ignore
+
+// /**
+//  * Creates an item-to-collection mapping object
+//  * @param {ItemTableRead} item - The item to map
+//  * @param {CollectionTableRead} collection - The collection to map to
+//  * @returns {ItemToCollectionTableRead} The created mapping object
+//  */
+// function createItemToCollection(item: ItemTableRead, collection: CollectionTableRead): ItemToCollectionTableWrite {
+//   const obj = {} as ItemToCollectionTableWrite;
+//   obj.itemKey = item.key;
+//   obj.collectionKey = collection.key;
+//   return obj as ItemToCollectionTableRead;
+// }
 
 /**
- * Inserts multiple rows of items into the database.
- *
- * @param {PrismaClient} prisma - The Prisma client instance.
- * @returns {Promise<void>} - A Promise that resolves when the items are inserted.
+ * Creates an update object for handling conflicts during database operations
+ * @param {PgTable} pgTable - The table to create update object for
+ * @param {string[]} except - Column names to exclude from updates
+ * @returns {Object} The update object with SQL expressions
  */
-async function insertItems(prisma: any): Promise<void> {
-  // insert multiple rows of items
-  await prisma.items.createMany({
-    data: newItems,
-    skipDuplicates: true,
-  });
-  newItems = [];
+function onConflictDoUpdateExcept(pgTable: PgTable = item, except: string[] = ['id', 'createdAt']): Record<string, any> {
+  const columnNames: string[] = Object.values(getTableColumns(pgTable)).map((col) => col.name);
+
+  const obj = {
+    ...columnNames.reduce((acc, key) => {
+      if (!except.includes(key)) {
+        console.log('key', key);
+        acc[key] = sql.raw(`excluded."${key}"`);
+      }
+      return acc;
+    }, {}),
+    ...(except.includes('updatedAt')
+      ? {}
+      : { updatedAt: sql`now()` }),
+  };
+
+  return obj;
 }
 
-let UpdatedItems = [];
-//@ts-ignore
+// /**
+//  * Creates a tag object from a Zotero tag
+//  * @param {Object} tag - The tag object from Zotero
+//  * @returns {TagTableRead} The created tag object
+//  */
+// function createTag(tag: ZoteroItem['data']['tags'][number]): TagTableRead {
+//   const obj = {} as TagTableWrite;
+//   obj.name = tag.tag;
+//   return obj as TagTableRead;
+// }
+
+// /**
+//  * Creates an item-to-tag mapping object
+//  * @param {ItemTableRead} item - The item to map
+//  * @param {TagTableRead} tag - The tag to map to
+//  * @returns {ItemToTagTableRead} The created mapping object
+//  */
+// function createItemToTag(item: ItemTableRead, tag: TagTableRead): ItemToTagTableWrite {
+//   const obj = {} as ItemToTagTableWrite;
+//   obj.itemKey = item.key;
+//   obj.tagName = tag.name;
+//   return obj as ItemToTagTableRead;
+// }
+
+// /**
+//  * Processes collections for an item, creating necessary objects and tracking deletions
+//  * @param {ZoteroItem} item - The item containing collections
+//  * @param {ItemTableRead} itemObj - The database item object
+//  * @param {CollectionTableWrite[]} collections - Array to store new collections
+//  * @param {ItemToCollectionTableWrite[]} itemToCollections - Array to store new mappings
+//  * @param {ItemToCollectionTableWrite[]} itemToCollectionsToDelete - Array to store mappings to delete
+//  * @param {ItemToCollectionTableRead[]} allItemToCollections - Existing mappings
+//  */
+// function processCollections(
+//   item: ZoteroItem,
+//   itemObj: ItemTableRead,
+//   collections: CollectionTableWrite[],
+//   itemToCollections: ItemToCollectionTableWrite[],
+//   itemToCollectionsToDelete: ItemToCollectionTableWrite[],
+//   allItemToCollections: ItemToCollectionTableRead[],
+// ) {
+//   if (item.data.collections) {
+//     item.data.collections.forEach((collection) => {
+//       let collectionObj = collections.find((c) => c.key === collection);
+//       if (!collectionObj) {
+//         collectionObj = createCollection(collection);
+//         collections.push(collectionObj);
+//       }
+//       itemToCollections.push(createItemToCollection(itemObj, collectionObj as CollectionTableRead));
+//     });
+//     itemToCollectionsToDelete.push(
+//       ...allItemToCollections.filter(
+//         (i) => i.itemKey === itemObj.key && !item.data.collections.includes(i.collectionKey),
+//       ),
+//     );
+//   }
+// }
+
+// /**
+//  * Processes tags for an item, creating necessary objects and tracking deletions
+//  * @param {ZoteroItem} item - The item containing tags
+//  * @param {ItemTableRead} itemObj - The database item object
+//  * @param {TagTableWrite[]} tags - Array to store new tags
+//  * @param {ItemToTagTableWrite[]} itemToTags - Array to store new mappings
+//  * @param {ItemToTagTableWrite[]} itemToTagsToDelete - Array to store mappings to delete
+//  * @param {ItemToTagTableRead[]} allItemToTags - Existing mappings
+//  */
+// function processTags(
+//   item: ZoteroItem,
+//   itemObj: ItemTableRead,
+//   tags: TagTableWrite[],
+//   itemToTags: ItemToTagTableWrite[],
+//   itemToTagsToDelete: ItemToTagTableWrite[],
+//   allItemToTags: ItemToTagTableRead[],
+// ) {
+//   if (item.data.tags) {
+//     item.data.tags.forEach((tag) => {
+//       let tagObj = tags.find((t) => t.name === tag.tag);
+//       if (!tagObj) {
+//         tagObj = createTag(tag);
+//         tags.push(tagObj);
+//       }
+//       itemToTags.push(createItemToTag(itemObj, tagObj as TagTableRead));
+//     });
+//     itemToTagsToDelete.push(
+//       ...allItemToTags.filter(
+//         (i) => i.itemKey === itemObj.key && !item.data.tags.map((t) => t.tag).includes(i.tagName),
+//       ),
+//     );
+//   }
+// }
 
 /**
- * Updates the items in the database.
- *
- * @param {PrismaClient} prisma - The Prisma client instance.
- * @returns {Promise<void>} - A promise that resolves when the items are updated.
+ * Processes language information for an item
+ * @param {ZoteroItem} item - The item containing language information
+ * @param {LanguageTableWrite[]} languages - Array to store new languages
  */
-async function updateItems(prisma: any): Promise<void> {
-  // const { PrismaClient } = require('@prisma/client');
-  // const prisma = new PrismaClient();
-  console.log('updating items...');
-  let archive: any[string] = UpdatedItems.map((item) => item.id);
-  let archiveItems = await prisma.items.findMany({
-    where: {
-      id: {
-        in: archive,
-      },
-    },
-  });
-  await prisma.itemsArchive.createMany({
-    data: archiveItems,
-  });
-  // update multiple rows of items in parallel
-  if (UpdatedItems.length > 0) {
-    await Promise.all(
-      UpdatedItems.map(async (item) => {
-        await prisma.items.update({
-          where: {
-            id: item.id,
-          },
-          data: {
-            version: item.version,
-            data: item.data,
-            updatedAt: new Date(),
-            isDeleted: item.isDeleted,
-          },
-        });
-      }),
-    );
-    console.log('finished updating items');
-    UpdatedItems = [];
-  }
-}
-
-let newAlsoKnownAs = [];
-//@ts-ignore
-
-/**
- * Inserts multiple rows of items into the "alsoKnownAs" table.
- *
- * @param prisma - The Prisma client instance.
- * @returns A promise that resolves when the insertion is complete.
- */
-async function insertAlsoKnownAs(prisma) {
-  // insert multiple rows of items
-  if (newAlsoKnownAs.length > 0) {
-    await prisma.alsoKnownAs.createMany({
-      data: newAlsoKnownAs,
-      skipDuplicates: true,
-    });
-    newAlsoKnownAs = [];
-  }
-}
-let updatedAlsoKnownAs = [];
-/**
- * Updates the 'alsoKnownAs' records in the database using the provided Prisma client.
- * @param prisma - The Prisma client instance.
- * @returns A Promise that resolves when the update is complete.
- */
-async function updateAlsoKnownAs(prisma: any): Promise<void> {
-  // insert multiple rows of items
-  console.log('updating alsoKnownAs...');
-  if (updatedAlsoKnownAs.length > 0) {
-    updatedAlsoKnownAs.map(async (item) => {
-      await prisma.alsoKnownAs.update({
-        where: {
-          id: item.id,
-          item_id: item.item_id,
-          group_id: item.group_id,
-        },
-        data: {
-          data: item.data,
-          updatedAt: new Date(),
-          isDeleted: item.isDeleted,
-        },
+function processLanguage(
+  item: ZoteroItem,
+  languages: LanguageTableWrite[],
+) {
+  if (item.data.language && item.data.language.length > 0) {
+    if (!languages.find((language) => language.name == item.data.language))
+      languages.push({
+        name: item.data.language,
       });
-    });
-
-    console.log('finished updating alsoKnownAs');
-    updatedAlsoKnownAs = [];
   }
 }
 
@@ -213,199 +419,147 @@ async function updateAlsoKnownAs(prisma: any): Promise<void> {
  * @returns {Promise<void>}
  */
 export async function saveZoteroItems(
-  allFetchedItems: ItemResponse[][],
+  allFetchedItems: ZoteroItem[][],
   lastModifiedVersion,
   groupId: string,
 ): Promise<void> {
-  const { PrismaClient } = require('@prisma/client');
-  const prisma = new PrismaClient();
-  // console.log(lastModifiedVersion);
+  const items = [] as ItemTableWrite[];
+  const collections = [] as CollectionTableWrite[];
+  const languages = [] as LanguageTableWrite[];
+  const tags = [] as TagTableWrite[];
 
-  await prisma.$connect();
+  const itemToCollections = [] as ItemToCollectionTableWrite[];
+  const itemToTags = [] as ItemToTagTableWrite[];
 
-  const allItems = await prisma.items.findMany({
-    where: {
-      group_id: parseInt(groupId),
-    },
-  });
-  const allItemsIds = allItems.map((item) => item.id);
-  console.log('allItemsIds', allItemsIds.length);
+  // const itemToCollectionsToDelete = [] as ItemToCollectionTableWrite[];
+  // const itemToTagsToDelete = [] as ItemToTagTableWrite[];
 
-  //@ts-ignore
-  const allCollections = await prisma.collections.findMany();
-  //@ts-ignore
-  const allCollectionsIds = allCollections.map((collection) => collection.id);
-  //@ts-ignore
-  const alsoKnownAs = await prisma.alsoKnownAs.findMany({
-    where: {
-      group_id: parseInt(groupId),
-    },
-  });
-  const allGroups = await prisma.groups.findMany();
-  const allGroupsIds = allGroups.map((group) => group.id);
-  console.log('allGroupsIds', allGroupsIds.length);
-  Object.entries(lastModifiedVersion).forEach(async ([group]) => {
-    if (!allGroupsIds.includes(parseInt(group))) {
-      await prisma.groups.create({
-        data: {
-          id: parseInt(group),
-          version: 0,
-          itemsVersion: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
+  // const allItemToTags = await db.query.itemToTag.findMany();
+  // const allItemToCollections = await db.query.itemToCollection.findMany();
+
+  fs.writeFileSync('lastModifiedVersion.json', JSON.stringify(lastModifiedVersion, null, 2));
+  fs.writeFileSync('allFetchedItems.json', JSON.stringify(allFetchedItems, null, 2));
+
+  for (const chunk of allFetchedItems) {
+    if (!Array.isArray(chunk)) {
+      console.error('Invalid chunk structure:', chunk);
+      continue;
+    }
+    for (const item of chunk) {
+      if (matchItemType(item)) {
+        const itemObj = createItem(item);
+        items.push(itemObj);
+
+        // processCollections(
+        //   item,
+        //   itemObj,
+        //   collections,
+        //   itemToCollections,
+        //   itemToCollectionsToDelete,
+        //   allItemToCollections,
+        // );
+
+        // processTags(
+        //   item,
+        //   itemObj,
+        //   tags,
+        //   itemToTags,
+        //   itemToTagsToDelete,
+        //   allItemToTags,
+        // );
+
+        processLanguage(item, languages);
+      }
+    }
+  }
+
+  // await db.delete(itemToCollection).where(
+  //   inArray(
+  //     itemToCollection.itemKey,
+  //     itemToCollectionsToDelete.map((i) => i.itemKey),
+  //   ),
+  // );
+
+  // await db.delete(itemToTag).where(
+  //   inArray(
+  //     itemToTag.itemKey,
+  //     itemToTagsToDelete.map((i) => i.itemKey),
+  //   ),
+  // );
+
+  if (languages.length > 0)
+    await db
+      .insert(language)
+      .values(languages)
+      .onConflictDoNothing()
+
+  if (items.length > 0) {
+    console.log(`adding ${items.length} items`);
+
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+      const batch = items.slice(i, i + BATCH_SIZE);
+      await db
+        .insert(item)
+        .values(batch)
+        .onConflictDoUpdate({
+          target: [item.key],
+          set: onConflictDoUpdateExcept(item),
+        });
+    }
+  }
+
+  if (collections.length > 0) {
+    console.log(`adding ${collections.length} collections`);
+    await db
+      .insert(collection)
+      .values(collections)
+      .onConflictDoUpdate({
+        target: [collection.key],
+        set: onConflictDoUpdateExcept(collection),
       });
-    }
-  });
-
-  for await (const items of allFetchedItems) {
-    for await (const item of items) {
-      if (item.data.deleted == 1) {
-        handleDeletedItem(item, allItemsIds, newItems, UpdatedItems);
-      } else {
-        handleUpdatedOrNewItem(item, allItemsIds, newItems, UpdatedItems);
-      }
-      if (item.data.extra) {
-        handleAlsoKnownAs(item, alsoKnownAs, newAlsoKnownAs, updatedAlsoKnownAs);
-      }
-    }
   }
 
-  console.log('items', newItems.length);
-  console.log('UpdatedItems', UpdatedItems.length);
-  console.log('newAlsoKnownAs', newAlsoKnownAs.length);
-  console.log('updatedAlsoKnownAs', updatedAlsoKnownAs.length);
-
-  // await insertCollections(prisma);
-  await insertItems(prisma);
-  await insertAlsoKnownAs(prisma);
-  await updateAlsoKnownAs(prisma);
-
-  // await insertItemCollections(prisma);
-  await updateItems(prisma);
-
-  Object.entries(lastModifiedVersion).forEach(async ([group, version]) => {
-    await prisma.groups.update({
-      where: {
-        id: parseInt(group),
-      },
-      data: {
-        itemsVersion: parseInt(version.toString()),
-        updatedAt: new Date(),
-      },
-    });
-  });
-}
-
-//@ts-ignore
-
-/**
- * Handles a deleted item by adding it to the appropriate array based on its existence in `allItemsIds`.
- * If the item is not found in `allItemsIds`, it is added to the `newItems` array.
- * If the item is found in `allItemsIds`, it is added to the `updatedItems` array.
- *
- * @param item - The deleted item to handle.
- * @param allItemsIds - An array of all item IDs.
- * @param newItems - An array to store new items.
- * @param updatedItems - An array to store updated items.
- */
-function handleDeletedItem(
-  item: ItemResponse,
-  allItemsIds: string[],
-  newItems: NewItemDB[],
-  updatedItems: UpdateItemDB[],
-) {
-  if (!allItemsIds.includes(item.key)) {
-    newItems.push({
-      id: item.key,
-      version: item.version,
-      data: item,
-      // inconsistent: item.inconsistent,
-      group_id: item.library.id,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      isDeleted: true,
-    });
-  } else {
-    updatedItems.push({
-      id: item.key,
-      version: item.version,
-      data: item,
-      updatedAt: new Date(),
-      isDeleted: true,
-    });
+  if (itemToCollections.length > 0) {
+    console.log(`adding ${itemToCollections.length} itemToCollections`);
+    await db
+      .insert(itemToCollection)
+      .values(itemToCollections)
+      .onConflictDoUpdate({
+        target: [itemToCollection.itemKey, itemToCollection.collectionKey],
+        set: onConflictDoUpdateExcept(itemToCollection),
+      });
   }
-}
-//@ts-ignore
 
-/**
- * Handles an updated or new item.
- *
- * @param item - The item to handle.
- * @param allItemsIds - An array of all item IDs.
- * @param newItems - An array to store new items.
- * @param updatedItems - An array to store updated items.
- */
-function handleUpdatedOrNewItem(
-  item: ItemResponse,
-  allItemsIds: string[],
-  newItems: NewItemDB[],
-  updatedItems: UpdateItemDB[],
-): void {
-  if (!allItemsIds.includes(item.key)) {
-    newItems.push({
-      id: item.key,
-      version: item.version,
-      data: item,
-      // inconsistent: item.inconsistent,
-      group_id: item.library.id,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-  } else {
-    updatedItems.push({
-      id: item.key,
-      version: item.version,
-      data: item,
-      updatedAt: new Date(),
-    });
+  if (tags.length > 0) {
+    console.log(`adding ${tags.length} tags`);
+    await db
+      .insert(tag)
+      .values(tags)
+      .onConflictDoUpdate({
+        target: [tag.name],
+        set: onConflictDoUpdateExcept(tag, ['id', 'createdAt', 'name']),
+      });
   }
-}
 
-//@ts-ignore
-/**
- * Handles the "also known as" data for an item.
- *
- * @param item - The item object.
- * @param alsoKnownAs - The array of existing "also known as" data.
- * @param newAlsoKnownAs - The array to store new "also known as" data.
- * @param updateAlsoKnownAs - The array to store updated "also known as" data.
- */
-function handleAlsoKnownAs(
-  item: ItemResponse,
-  alsoKnownAs: AlsoKnownAsDB[],
-  newAlsoKnownAs: NewAlsoKnownAsDB[],
-  updateAlsoKnownAs: UpdateAlsoKnownAsDB[],
-): void {
-  if (alsoKnownAs.some((i) => i.item_id === item.key && i.group_id === item.library.id)) {
-    updateAlsoKnownAs.push({
-      id: alsoKnownAs.find((i) => i.item_id === item.key && i.group_id === item.library.id).id,
-      item_id: item.key,
-      group_id: item.library.id,
-      data: item.data.extra,
-      isDeleted: item.data.deleted == 1,
-      updatedAt: new Date(),
-    });
-  } else {
-    newAlsoKnownAs.push({
-      item_id: item.key,
-      group_id: item.library.id,
-      data: item.data.extra,
-      isDeleted: item.data.deleted == 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+  if (itemToTags.length > 0) {
+    console.log(`adding ${itemToTags.length} itemToTags`);
+    await db
+      .insert(itemToTag)
+      .values(itemToTags)
+      .onConflictDoUpdate({
+        target: [itemToTag.itemKey, itemToTag.tagName],
+        set: onConflictDoUpdateExcept(itemToTag),
+      });
   }
+
+  await Promise.all(
+    Object.entries(lastModifiedVersion).map(async ([externalId, version]) => {
+      return db
+        .update(group)
+        .set({ itemsVersion: Number(version) })
+        .where(eq(group.externalId, parseInt(externalId)));
+    }),
+  );
 }
 
 /**
@@ -413,17 +567,11 @@ function handleAlsoKnownAs(
  * @param keys - The keys to lookup items for.
  * @returns A promise that resolves to an array of items matching the provided keys.
  */
-export async function lookupItems(keys: { keys: string[] }): Promise<Item[]> {
-  const { PrismaClient } = require('@prisma/client');
-  const prisma = new PrismaClient();
-
-  const items = await prisma.items.findMany({
-    where: {
-      id: {
-        in: keys.keys,
-      },
-    },
+export async function lookupItems(keys: { keys: string[] }): Promise<ItemTableRead[]> {
+  const items = await db.query.item.findMany({
+    where: inArray(item.key, keys.keys),
   });
+
   return items;
 }
 
@@ -433,18 +581,7 @@ export async function lookupItems(keys: { keys: string[] }): Promise<Item[]> {
  * @returns A promise that resolves to an array of empty items.
  */
 export async function FindEmptyItemsFromDatabase(group_id: string): Promise<Item[]> {
-  const { PrismaClient } = require('@prisma/client');
-  const prisma = new PrismaClient();
+  fs.writeFileSync('group_id.json', JSON.stringify(group_id, null, 2));
 
-  const items = await prisma.items.findMany({
-    where: {
-      data: {
-        path: ['data', 'title'],
-        equals: '',
-      },
-      isDeleted: false,
-      group_id: group_id,
-    },
-  });
-  return items;
+  return [];
 }

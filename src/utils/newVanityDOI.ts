@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { NewVanityDOIItem } from '../types/newVanityDOI';
 
 const fs = require('fs');

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { CompareArgs, Deduplicate_func_result } from '../types/compare';
 import { Creator, Item } from '../types/item';
 

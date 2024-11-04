@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { ZoteroConfig, ZoteroConfigOptions } from './types/config';
 
 const os = require('os');

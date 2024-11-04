@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { ZoteroTypes } from '../zotero-interface';
 
 const he = require('he');

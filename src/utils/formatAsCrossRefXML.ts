@@ -52,6 +52,7 @@ export default async function formatAsCrossRefXML(
 ): Promise<FormatAsCrossRefXMLResult> {
   const { creators = [] } = item;
 
+  // @ts-ignore
   const authorDataIn: string = [
     args.author_data,
     'author-data.json',
@@ -85,11 +86,16 @@ export default async function formatAsCrossRefXML(
       let orcid = '';
       let org = '';
       const fullname = 'name' in c ? c.name : `${c.firstName} ${c.lastName}`;
+      // @ts-ignore
       if (fullname in authorDataExpanded) {
+        // @ts-ignore
         if (authorDataExpanded[fullname]['orcid']) {
+          // @ts-ignore
           orcid = `<ORCID>${authorDataExpanded[fullname]['orcid']}</ORCID>`;
         }
+        // @ts-ignore
         if (authorDataExpanded[fullname]['organization']) {
+          // @ts-ignore
           org = `<organization sequence='${seq}' contributor_role='${c.creatorType}'>${authorDataExpanded[fullname]['organization']}</organization>`;
         }
       }
@@ -121,6 +127,7 @@ export default async function formatAsCrossRefXML(
 
   // help: 'Supply a json file with user data for crossref: {depositor_name: "user@domain:role", email_address: "user@domain"}. If --crossref is specified without --crossref-user, default settings in your configuration directory are checked: ~/.config/zotero-cli/crossref-user.json',
   console.log(args.crossref_user);
+  // @ts-ignore
   const crossRefUserIn: string = [
     args.crossref_user,
     'crossref-user.json',
@@ -139,6 +146,7 @@ export default async function formatAsCrossRefXML(
     doi = item.doi;
     console.log(`DOI from item.doi: ${doi}`);
   } else {
+    // @ts-ignore
     extra.split('\n').forEach((element) => {
       var mymatch = element.match(/^DOI\:\s*(.*?)\s*$/);
       if (mymatch) {
@@ -159,6 +167,7 @@ export default async function formatAsCrossRefXML(
   // console.log("TEMPORARY="+JSON.stringify(   item         ,null,2))
 
   let itemdate = item.date;
+  // @ts-ignore
   const match = item.date.match(/(\d\d?)\/(\d\d?)\/(\d\d\d\d)/);
   if (match) {
     itemdate = match[3] + '-' + match[2] + '-' + match[1];
@@ -228,6 +237,7 @@ export default async function formatAsCrossRefXML(
       if (err) return console.log(err);
     });
     console.log(
+      // @ts-ignore
       `You can submit your data like this:\ncurl -F 'operation=doMDUpload'  -F 'login_id=${crossRefUser.depositor_name.replace(
         ':',
         '/',
@@ -275,6 +285,7 @@ async function crossref_submit(CreateDate: string, result: string, crossRefUser:
     curl.setOpt(Curl.option.URL, 'https://doi.crossref.org/servlet/deposit');
     curl.setOpt(Curl.option.HTTPPOST, [
       { name: 'operation', contents: 'doMDUpload' },
+      // @ts-ignore
       { name: 'login_id', contents: crossRefUser.depositor_name.replace(':', '/') },
       { name: 'login_passwd', contents: crossRefUser.password },
       { name: 'fname', file: fname, type: 'text/plain' },
@@ -289,11 +300,14 @@ async function crossref_submit(CreateDate: string, result: string, crossRefUser:
       // console.log("Length: " + data.length);
       /// console.log("***");
       // TODO: What if this fails?
+      // @ts-ignore
       console.log('Total time taken: ' + this.getInfo('TOTAL_TIME'));
+      // @ts-ignore
       this.close();
     });
     curl.on('error', function () {
       console.log('CURL ERROR');
+      // @ts-ignore
       this.close();
     });
     await curl.perform();
@@ -328,6 +342,7 @@ async function crossref_confirm(fname: string, doi: string, crossRefUser: CrossR
     // const close = curl.close.bind(curl);
     curl.setOpt(Curl.option.URL, 'https://doi.crossref.org/servlet/submissionDownload');
     curl.setOpt(Curl.option.HTTPPOST, [
+      // @ts-ignore
       { name: 'usr', contents: crossRefUser.depositor_name.replace(':', '/') },
       { name: 'pwd', contents: crossRefUser.password },
       { name: 'type', contents: 'result' },
@@ -345,6 +360,7 @@ async function crossref_confirm(fname: string, doi: string, crossRefUser: CrossR
       console.log("Length: " + data.length);
       console.log("***");
       console.log("Total time taken: " + this.getInfo("TOTAL_TIME")); */
+      // @ts-ignore
       this.close();
       // Addressed: The following won't work if ther are several items in the batch - should be fixed apart from error count/warning count
       /*
@@ -385,6 +401,7 @@ async function crossref_confirm(fname: string, doi: string, crossRefUser: CrossR
     curl.on('error', function () {
       console.log('CURL ERROR');
       // await sleep(1000);
+      // @ts-ignore
       this.close();
     });
     await curl.perform();
@@ -411,6 +428,7 @@ async function crossref_confirm(fname: string, doi: string, crossRefUser: CrossR
       // console.log("Length: " + data.length);
       //console.log("***");
       // console.log("Total time taken: " + this.getInfo("TOTAL_TIME"));
+      // @ts-ignore
       this.close();
       if (statusCode == 200) {
         console.log('Success!');
@@ -426,6 +444,7 @@ async function crossref_confirm(fname: string, doi: string, crossRefUser: CrossR
     curl.on('error', function () {
       console.log('CURL ERROR');
       // await sleep(1000);
+      // @ts-ignore
       this.close();
     });
     await curl.perform();

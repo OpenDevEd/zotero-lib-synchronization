@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "resolveJsonModule": true,
     "allowUnreachableCode": true,
     "target": "es2018",
     "disableSizeLimit": true,
@@ -17,7 +18,9 @@
     "esModuleInterop": true,
     "noFallthroughCasesInSwitch": true,
     "lib": ["es2020", "dom"],
-    "typeRoots": ["./typings", "./node_modules/@types"]
+    "typeRoots": ["./typings", "./node_modules/@types"],
+    "baseUrl": ".",
+    "strict": true
   },
   "include": ["src/*.ts", "src/**/*.ts"],
   "exclude": ["node_modules", "BaCkUp", "*/BaCkUp"],

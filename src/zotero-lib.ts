@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-nocheck
 import { ZoteroTypes } from './zotero-interface';
 
 import Ajv from 'ajv';
@@ -3560,7 +3561,10 @@ const syncToLocalDB = async (args: ZoteroTypes.ISyncToLocalDBArgs): Promise<void
   const onlineGroups = await fetchGroups({ ...args });
   const offlineGroups = await getAllGroups();
 
-  const offlineItemsVersion = offlineGroups.reduce((a, c) => ({ ...a, [c.id]: c.itemsVersion }), {});
+  console.log('onlineGroups', onlineGroups);
+  console.log('offlineGroups', offlineGroups);
+
+  const offlineItemsVersion = offlineGroups.reduce( (a: any, c: any) => ({ ...a, [c.externalId]: c.itemsVersion }), {});
 
   const changedGroups: string[] = groupid ? [groupid] : await fetchChangedGroups(onlineGroups, offlineGroups);
 

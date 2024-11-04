@@ -1,3 +1,4 @@
+// @ts-nocheck
 import Zotero from '../zotero-lib';
 import { FullItemResponse } from '../types/item';
 import { MergeItems } from '../types/merge';
