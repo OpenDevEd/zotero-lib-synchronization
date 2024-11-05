@@ -1,0 +1,46 @@
+[
+  {
+    "id": 2259720,
+    "version": 47,
+    "links": {
+      "self": {
+        "href": "https://api.zotero.org/groups/2259720",
+        "type": "application/json"
+      },
+      "alternate": {
+        "href": "https://www.zotero.org/groups/2259720",
+        "type": "text/html"
+      }
+    },
+    "meta": {
+      "created": "2018-11-26T18:43:14Z",
+      "lastModified": "2024-11-04T14:12:42Z",
+      "numItems": 11891
+    },
+    "data": {
+      "id": 2259720,
+      "version": 47,
+      "name": "2020 API_TEST",
+      "owner": 1867969,
+      "type": "Private",
+      "description": "",
+      "url": "",
+      "libraryEditing": "members",
+      "libraryReading": "members",
+      "fileEditing": "members",
+      "admins": [
+        9690237
+      ],
+      "members": [
+        7635957,
+        9042012,
+        10490922,
+        11856101,
+        13633957,
+        13637938,
+        13775266,
+        15294942
+      ]
+    }
+  }
+]

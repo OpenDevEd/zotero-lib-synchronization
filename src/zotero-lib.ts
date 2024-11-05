@@ -2773,23 +2773,30 @@ class Zotero {
     if (!key) {
       return this.message(1, 'key is required');
     }
+    
     const res = await axios.get(`https://api.zotero.org/groups/${this.config.group_id}/items/${key}/file`, {
+      responseType: 'stream', 
       headers: {
         Authorization: `Bearer ${this.config.api_key}`,
       },
     });
-    
+  
     if (!res) {
       return this.message(1, 'Failed to download attachment');
     }
     logger.info(res.headers);
-    // Create a write stream to save the file
-    fs.writeFileSync(filename, res.data, 'binary');
     
-
+    const writer = fs.createWriteStream(filename);
+  
+    res.data.pipe(writer);
+  
+    await new Promise<void>((resolve, reject) => {
+      writer.on('finish', resolve);
+      writer.on('error', reject);
+    });
+  
     // 
   }
-
 
   /**
    * Update the DOI of the item provided.

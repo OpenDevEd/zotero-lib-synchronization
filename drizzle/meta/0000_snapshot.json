@@ -1,0 +1,1215 @@
+{
+  "id": "f1d2f83b-c42a-4477-a757-1d96466563b4",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.collection": {
+      "name": "collection",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "gen_random_uuid()"
+        },
+        "key": {
+          "name": "key",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "numCollections": {
+          "name": "numCollections",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "numItems": {
+          "name": "numItems",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "parentKey": {
+          "name": "parentKey",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "collection_parentKey_collection_key_fk": {
+          "name": "collection_parentKey_collection_key_fk",
+          "tableFrom": "collection",
+          "tableTo": "collection",
+          "columnsFrom": [
+            "parentKey"
+          ],
+          "columnsTo": [
+            "key"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "public.group": {
+      "name": "group",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "externalId": {
+          "name": "externalId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "type": {
+          "name": "type",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "url": {
+          "name": "url",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "numItems": {
+          "name": "numItems",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "itemsVersion": {
+          "name": "itemsVersion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "group_externalId_unique": {
+          "name": "group_externalId_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "externalId"
+          ]
+        }
+      },
+      "checkConstraints": {}
+    },
+    "public.item": {
+      "name": "item",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "itemType": {
+          "name": "itemType",
+          "type": "itemType",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Artwork'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "key": {
+          "name": "key",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "abstractNote": {
+          "name": "abstractNote",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "artworkMedium": {
+          "name": "artworkMedium",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "artworkSize": {
+          "name": "artworkSize",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date": {
+          "name": "date",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "shortTitle": {
+          "name": "shortTitle",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archive": {
+          "name": "archive",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archiveLocation": {
+          "name": "archiveLocation",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "libraryCatalog": {
+          "name": "libraryCatalog",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "callNumber": {
+          "name": "callNumber",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "url": {
+          "name": "url",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accessDate": {
+          "name": "accessDate",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rights": {
+          "name": "rights",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "extra": {
+          "name": "extra",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "audioRecordingFormat": {
+          "name": "audioRecordingFormat",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "seriesTitle": {
+          "name": "seriesTitle",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "numberOfVolumes": {
+          "name": "numberOfVolumes",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "volume": {
+          "name": "volume",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "place": {
+          "name": "place",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "label": {
+          "name": "label",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "runningTime": {
+          "name": "runningTime",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ISBN": {
+          "name": "ISBN",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "billNumber": {
+          "name": "billNumber",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "codeVolume": {
+          "name": "codeVolume",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "section": {
+          "name": "section",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "codePages": {
+          "name": "codePages",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "legislativeBody": {
+          "name": "legislativeBody",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "session": {
+          "name": "session",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "history": {
+          "name": "history",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "blogTitle": {
+          "name": "blogTitle",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "websiteType": {
+          "name": "websiteType",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "series": {
+          "name": "series",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "seriesNumber": {
+          "name": "seriesNumber",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "edition": {
+          "name": "edition",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "publisher": {
+          "name": "publisher",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "numPages": {
+          "name": "numPages",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bookTitle": {
+          "name": "bookTitle",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pages": {
+          "name": "pages",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "court": {
+          "name": "court",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dateDecided": {
+          "name": "dateDecided",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "docketNumber": {
+          "name": "docketNumber",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reporter": {
+          "name": "reporter",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reporterVolume": {
+          "name": "reporterVolume",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "firstPage": {
+          "name": "firstPage",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "versionNumber": {
+          "name": "versionNumber",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "system": {
+          "name": "system",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "company": {
+          "name": "company",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "programmingLanguage": {
+          "name": "programmingLanguage",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "proceedingsTitle": {
+          "name": "proceedingsTitle",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "conferenceName": {
+          "name": "conferenceName",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "DOI": {
+          "name": "DOI",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dictionaryTitle": {
+          "name": "dictionaryTitle",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subject": {
+          "name": "subject",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "encyclopediaTitle": {
+          "name": "encyclopediaTitle",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "distributor": {
+          "name": "distributor",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "genre": {
+          "name": "genre",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "caseName": {
+          "name": "caseName",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "videoRecordingFormat": {
+          "name": "videoRecordingFormat",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "forumTitle": {
+          "name": "forumTitle",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "postType": {
+          "name": "postType",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "committee": {
+          "name": "committee",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "documentNumber": {
+          "name": "documentNumber",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "interviewMedium": {
+          "name": "interviewMedium",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "publicationTitle": {
+          "name": "publicationTitle",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "issue": {
+          "name": "issue",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "seriesText": {
+          "name": "seriesText",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "journalAbbreviation": {
+          "name": "journalAbbreviation",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ISSN": {
+          "name": "ISSN",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "letterType": {
+          "name": "letterType",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "manuscriptType": {
+          "name": "manuscriptType",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mapType": {
+          "name": "mapType",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scale": {
+          "name": "scale",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "country": {
+          "name": "country",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assignee": {
+          "name": "assignee",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "issuingAuthority": {
+          "name": "issuingAuthority",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "patentNumber": {
+          "name": "patentNumber",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "filingDate": {
+          "name": "filingDate",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "applicationNumber": {
+          "name": "applicationNumber",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priorityNumbers": {
+          "name": "priorityNumbers",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "issueDate": {
+          "name": "issueDate",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "references": {
+          "name": "references",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "legalStatus": {
+          "name": "legalStatus",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "episodeNumber": {
+          "name": "episodeNumber",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "audioFileType": {
+          "name": "audioFileType",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "presentationType": {
+          "name": "presentationType",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "meetingName": {
+          "name": "meetingName",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "programTitle": {
+          "name": "programTitle",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "network": {
+          "name": "network",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reportNumber": {
+          "name": "reportNumber",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reportType": {
+          "name": "reportType",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "institution": {
+          "name": "institution",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nameOfAct": {
+          "name": "nameOfAct",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "codeNumber": {
+          "name": "codeNumber",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "publicLawNumber": {
+          "name": "publicLawNumber",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dateEnacted": {
+          "name": "dateEnacted",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "thesisType": {
+          "name": "thesisType",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "university": {
+          "name": "university",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "studio": {
+          "name": "studio",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "websiteTitle": {
+          "name": "websiteTitle",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted": {
+          "name": "deleted",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "languageName": {
+          "name": "languageName",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "groupExternalId": {
+          "name": "groupExternalId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "collections": {
+          "name": "collections",
+          "type": "varchar[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tags": {
+          "name": "tags",
+          "type": "varchar[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "relations": {
+          "name": "relations",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "item_languageName_language_name_fk": {
+          "name": "item_languageName_language_name_fk",
+          "tableFrom": "item",
+          "tableTo": "language",
+          "columnsFrom": [
+            "languageName"
+          ],
+          "columnsTo": [
+            "name"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "item_groupExternalId_group_externalId_fk": {
+          "name": "item_groupExternalId_group_externalId_fk",
+          "tableFrom": "item",
+          "tableTo": "group",
+          "columnsFrom": [
+            "groupExternalId"
+          ],
+          "columnsTo": [
+            "externalId"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "item_key_unique": {
+          "name": "item_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "key"
+          ]
+        }
+      },
+      "checkConstraints": {}
+    },
+    "public.itemToCollection": {
+      "name": "itemToCollection",
+      "schema": "",
+      "columns": {
+        "itemKey": {
+          "name": "itemKey",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "collectionKey": {
+          "name": "collectionKey",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "itemToCollection_itemKey_item_key_fk": {
+          "name": "itemToCollection_itemKey_item_key_fk",
+          "tableFrom": "itemToCollection",
+          "tableTo": "item",
+          "columnsFrom": [
+            "itemKey"
+          ],
+          "columnsTo": [
+            "key"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "itemToCollection_collectionKey_collection_key_fk": {
+          "name": "itemToCollection_collectionKey_collection_key_fk",
+          "tableFrom": "itemToCollection",
+          "tableTo": "collection",
+          "columnsFrom": [
+            "collectionKey"
+          ],
+          "columnsTo": [
+            "key"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "itemToCollection_itemKey_collectionKey_pk": {
+          "name": "itemToCollection_itemKey_collectionKey_pk",
+          "columns": [
+            "itemKey",
+            "collectionKey"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "public.itemToTag": {
+      "name": "itemToTag",
+      "schema": "",
+      "columns": {
+        "itemKey": {
+          "name": "itemKey",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tagName": {
+          "name": "tagName",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "itemToTag_itemKey_item_key_fk": {
+          "name": "itemToTag_itemKey_item_key_fk",
+          "tableFrom": "itemToTag",
+          "tableTo": "item",
+          "columnsFrom": [
+            "itemKey"
+          ],
+          "columnsTo": [
+            "key"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "itemToTag_tagName_tag_name_fk": {
+          "name": "itemToTag_tagName_tag_name_fk",
+          "tableFrom": "itemToTag",
+          "tableTo": "tag",
+          "columnsFrom": [
+            "tagName"
+          ],
+          "columnsTo": [
+            "name"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "itemToTag_itemKey_tagName_pk": {
+          "name": "itemToTag_itemKey_tagName_pk",
+          "columns": [
+            "itemKey",
+            "tagName"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "public.language": {
+      "name": "language",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "public.tag": {
+      "name": "tag",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "enums": {
+    "public.creatorType": {
+      "name": "creatorType",
+      "schema": "public",
+      "values": [
+        "artist",
+        "contributor",
+        "performer",
+        "composer",
+        "wordsBy",
+        "sponsor",
+        "cosponsor",
+        "author",
+        "editor",
+        "bookAuthor",
+        "seriesEditor",
+        "translator",
+        "counsel",
+        "programmer",
+        "reviewedAuthor",
+        "recipient",
+        "cartographer",
+        "inventor",
+        "attorneyAgent",
+        "podcaster",
+        "guest",
+        "director",
+        "castMember",
+        "producer",
+        "scriptwriter",
+        "commenter",
+        "interviewee",
+        "interviewer",
+        "presenter"
+      ]
+    },
+    "public.itemType": {
+      "name": "itemType",
+      "schema": "public",
+      "values": [
+        "Artwork",
+        "AudioRecording",
+        "Bill",
+        "BlogPost",
+        "Book",
+        "BookSection",
+        "Case",
+        "ComputerProgram",
+        "ConferencePaper",
+        "DictionaryEntry",
+        "Document",
+        "Email",
+        "EncyclopediaArticle",
+        "Film",
+        "ForumPost",
+        "Hearing",
+        "InstantMessage",
+        "Interview",
+        "JournalArticle",
+        "Letter",
+        "MagazineArticle",
+        "Manuscript",
+        "Map",
+        "NewspaperArticle",
+        "Note",
+        "Patent",
+        "Podcast",
+        "Presentation",
+        "RadioBroadcast",
+        "Report",
+        "Statute",
+        "TvBroadcast",
+        "Thesis",
+        "VideoRecording",
+        "Webpage"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

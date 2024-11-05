@@ -1,0 +1,73 @@
+[
+  [
+    {
+      "key": "JBJW9HH7",
+      "version": 15238,
+      "library": {
+        "type": "group",
+        "id": 2259720,
+        "name": "2020 API_TEST",
+        "links": {
+          "alternate": {
+            "href": "https://www.zotero.org/groups/2259720",
+            "type": "text/html"
+          }
+        }
+      },
+      "links": {
+        "self": {
+          "href": "https://api.zotero.org/groups/2259720/items/JBJW9HH7",
+          "type": "application/json"
+        },
+        "alternate": {
+          "href": "https://www.zotero.org/groups/2259720/items/JBJW9HH7",
+          "type": "text/html"
+        },
+        "up": {
+          "href": "https://api.zotero.org/groups/2259720/items/UB4NEEET",
+          "type": "application/json"
+        },
+        "enclosure": {
+          "type": "application/pdf",
+          "href": "https://api.zotero.org/groups/2259720/items/JBJW9HH7/file/view",
+          "title": "Bangay - 2024 - Climate, Environment and Education (as child’s play) What Why How.pdf",
+          "length": 2688257
+        }
+      },
+      "meta": {
+        "createdByUser": {
+          "id": 9690237,
+          "username": "hanicoma",
+          "name": "hassan mansour",
+          "links": {
+            "alternate": {
+              "href": "https://www.zotero.org/hanicoma",
+              "type": "text/html"
+            }
+          }
+        },
+        "numChildren": 0
+      },
+      "data": {
+        "key": "JBJW9HH7",
+        "version": 15238,
+        "parentItem": "UB4NEEET",
+        "itemType": "attachment",
+        "linkMode": "imported_file",
+        "title": "Bangay - 2024 - Climate, Environment and Education (as child’s play) What Why How.pdf",
+        "accessDate": "",
+        "url": "",
+        "note": "",
+        "contentType": "application/pdf",
+        "charset": "",
+        "filename": "Bangay - 2024 - Climate, Environment and Education (as child’s play) What Why How.pdf",
+        "md5": "586bda5a8b9e7efb0fe1e4709d008b71",
+        "mtime": 1730804118763,
+        "tags": [],
+        "relations": {},
+        "dateAdded": "2024-11-05T10:55:18Z",
+        "dateModified": "2024-11-05T10:55:18Z"
+      }
+    }
+  ]
+]
