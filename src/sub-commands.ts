@@ -31,6 +31,7 @@ customCmdHandlers.set('get-ids', 'getIds');
 customCmdHandlers.set('update-collection', 'update_collection');
 customCmdHandlers.set('delete-collection', 'delete_collection');
 customCmdHandlers.set('delete-collections', 'delete_collections');
+customCmdHandlers.set('download-attachment', 'download_attachment');
 
 function getFuncName(subCmdName: string): string {
   if (customCmdHandlers.has(subCmdName)) {
@@ -1081,6 +1082,22 @@ subParsersMap.set('get-ids', function (subparsers, subCmdName: string) {
     action: 'store',
     help: 'The ids of the items or collection.',
     required: true,
+  });
+});
+
+subParsersMap.set('download-attachment', function (subparsers, subCmdName: string) {
+  const argparser = subparsers.add_parser(subCmdName, {
+    help: 'Download an attachment.',
+  });
+  argparser.set_defaults({ func: getFuncName(subCmdName) });
+  argparser.add_argument('--key', {
+    action: 'store',
+    help: 'The key of the item to download the attachment for.',
+    required: true,
+  });
+  argparser.add_argument('--filename', {
+    action: 'store',
+    help: 'The filename to save the attachment to.',
   });
 });
 

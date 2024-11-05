@@ -12,7 +12,7 @@ import { tag } from '../db/schema/tables/tag';
 import { itemToTag } from '../db/schema/tables/itemToTag';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { language } from '../db/schema/tables/language';
-
+import * as ZoteroTypes from '../types/config';
 const BATCH_SIZE = 500;
 
 export type GroupTableWrite = InferInsertModel<typeof group>;
@@ -288,7 +288,6 @@ function onConflictDoUpdateExcept(pgTable: PgTable = item, except: string[] = ['
   const obj = {
     ...columnNames.reduce((acc, key) => {
       if (!except.includes(key)) {
-        console.log('key', key);
         acc[key] = sql.raw(`excluded."${key}"`);
       }
       return acc;
@@ -422,6 +421,8 @@ export async function saveZoteroItems(
   allFetchedItems: ZoteroItem[][],
   lastModifiedVersion,
   groupId: string,
+  zoteroLib: any,
+  config: ZoteroTypes.ZoteroConfigOptions,
 ): Promise<void> {
   const items = [] as ItemTableWrite[];
   const collections = [] as CollectionTableWrite[];

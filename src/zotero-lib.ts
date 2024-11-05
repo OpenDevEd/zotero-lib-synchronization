@@ -2178,7 +2178,7 @@ class Zotero {
             console.log(`Another sync run is in progress, please wait for it, or remove its lockfile ${lockFileName}`);
             return hasValidLock;
           }
-          return syncToLocalDB({ ...args, ...this.config }).then(() => removeLockFile(lockFileName));
+          return syncToLocalDB({ ...args, ...this.config }, this).then(() => removeLockFile(lockFileName));
         });
       };
 
@@ -2766,6 +2766,30 @@ class Zotero {
 
     return null;
   }
+
+
+  public async download_attachment(args: ZoteroTypes.IDownloadAttachmentsArgs): Promise<void> {
+    const { key, filename, path, fullresponse } = args;
+    if (!key) {
+      return this.message(1, 'key is required');
+    }
+    const res = await axios.get(`https://api.zotero.org/groups/${this.config.group_id}/items/${key}/file`, {
+      headers: {
+        Authorization: `Bearer ${this.config.api_key}`,
+      },
+    });
+    
+    if (!res) {
+      return this.message(1, 'Failed to download attachment');
+    }
+    logger.info(res.headers);
+    // Create a write stream to save the file
+    fs.writeFileSync(filename, res.data, 'binary');
+    
+
+    // 
+  }
+
 
   /**
    * Update the DOI of the item provided.
@@ -3548,7 +3572,7 @@ const fetchGroupItems = async (
  *
  * @param args - The arguments for the synchronization process.
  */
-const syncToLocalDB = async (args: ZoteroTypes.ISyncToLocalDBArgs): Promise<void> => {
+const syncToLocalDB = async (args: ZoteroTypes.ISyncToLocalDBArgs, zoteroLib: any): Promise<void> => {
   const syncStart = Date.now();
   console.log('syncing local db with online library');
 
@@ -3620,7 +3644,8 @@ const syncToLocalDB = async (args: ZoteroTypes.ISyncToLocalDBArgs): Promise<void
       //@ts-ignore
       itemsLastModifiedVersion[group.group] = lastModifiedVersion;
 
-      await saveZoteroItems(groupItems, itemsLastModifiedVersion, group.group);
+
+      await saveZoteroItems(groupItems, itemsLastModifiedVersion, group.group, this, args);
       // Saving logic here...
       console.log('group saved into db ', group.group);
 
