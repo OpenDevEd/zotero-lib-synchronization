@@ -2,6 +2,7 @@ import { pgEnum } from "drizzle-orm/pg-core";
 
 export const itemType = pgEnum("itemType", [
     "Artwork",
+    "Attachment",
     "AudioRecording",
     "Bill",
     "BlogPost",

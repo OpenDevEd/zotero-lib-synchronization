@@ -13,7 +13,13 @@ import { itemToTag } from '../db/schema/tables/itemToTag';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { language } from '../db/schema/tables/language';
 import * as ZoteroTypes from '../types/config';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import pdf from 'pdf-parse';
+
 const BATCH_SIZE = 500;
+const RETRY_ATTEMPTS = 3;
+const RETRY_DELAY = 3000;
+const PROCESS_BATCH_SIZE = 20;
 
 export type GroupTableWrite = InferInsertModel<typeof group>;
 export type ItemTableWrite = InferInsertModel<typeof item>;
@@ -30,6 +36,8 @@ export type ItemToCollectionTableRead = InferSelectModel<typeof itemToCollection
 export type TagTableRead = InferSelectModel<typeof tag>;
 export type ItemToTagTableRead = InferSelectModel<typeof itemToTag>;
 export type LanguageTableRead = InferSelectModel<typeof language>;
+
+type Zotero = any;
 
 /**
  * Type definition for a Zotero item with all its properties
@@ -158,7 +166,7 @@ export type ZoteroGroup = {
   };
 };
 
-const itemColumns = Object.values(getTableColumns(item)).map((col) => col.name);
+const itemColumns = Object.values(getTableColumns(item)).map((col: any) => col.name);
 
 /**
  * Retrieves all groups from the database.
@@ -246,7 +254,7 @@ function createItem(item: ZoteroItem): ItemTableRead {
     else if (column in item.data) {
       obj[column] = item.data[column];
     }
-    });  
+  });
   if (item.data.language && item.data.language.length > 0)
     obj.languageName = item.data.language;
   return obj as ItemTableRead;
@@ -409,6 +417,98 @@ function processLanguage(
   }
 }
 
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  maxAttempts: number = RETRY_ATTEMPTS,
+  delay: number = RETRY_DELAY,
+): Promise<T | null> {
+  let attempts = 0;
+
+  while (attempts < maxAttempts) {
+    try {
+      return await operation();
+    } catch (e) {
+      attempts++;
+    }
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+
+  return null;
+}
+
+async function downloadFile(item: ZoteroItem, groupId: string, zoteroLib: Zotero): Promise<boolean> {
+  return await retryOperation(() =>
+    zoteroLib.download_attachment({
+      key: item.key,
+      filename: `temp/${item.key}.pdf`,
+      group_id: groupId,
+    })
+  ) !== null;
+}
+
+function itemChecks(item: ZoteroItem) {
+  if (item.data.itemType != "Attachment") {
+    return false;
+  }
+  if (!item.data.parentItem || item.data.parentItem == "") {
+    return false;
+  }
+  // if (!item.data.tags || !item.data.tags.find((tag) => tag.tag == "_publish")) {
+  //   return false;
+  // }
+  if (!item.data.contentType || item.data.contentType != "application/pdf") {
+    return false;
+  }
+
+  return true;
+}
+
+async function processFile(item: ZoteroItem, itemObj: ItemTableWrite, groupId: string, zoteroLib: Zotero, items: any[], supabaseClient: SupabaseClient) {
+  console.log(`• [${item.key}] Attempting to download file`);
+  if (!(await downloadFile(item, groupId, zoteroLib))) {
+    console.log(`• [${item.key}] Failed to download file`);
+    console.error(`Failed to download file for item ${item.key}`);
+    return;
+  }
+
+  console.log(`• [${item.key}] File downloaded successfully`);
+
+  const action = items.find((i) => i.key == item.key) ? "update" : "upload";
+  console.log(`• [${item.key}] Action determined: ${action}`);
+
+  const PDFData = fs.readFileSync(`temp/${item.key}.pdf`);
+  console.log(`• [${item.key}] PDF data read from temp file`);
+
+  const filePath = `${groupId}/${item.data.parentItem}/${item.key}/file.pdf`;
+  console.log(`• [${item.key}] File path created: ${filePath}`);
+
+  const { text } = await pdf(PDFData);
+
+  console.log(`• [${item.key}] PDF text extracted`);
+
+  fs.unlinkSync(`temp/${item.key}.pdf`);
+  console.log(`• [${item.key}] Temp file deleted`);
+
+  const uploadResult = await retryOperation(() =>
+    supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!)[action](filePath, PDFData)
+  );
+
+  if (!uploadResult) {
+    console.log(`• [${item.key}] Failed to upload to Supabase`);
+    console.error(`Failed to upload file for item ${item.key}`);
+    return;
+  }
+
+  console.log(`• [${item.key}] File uploaded to Supabase successfully`);
+
+  const publicUrl = supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).getPublicUrl(filePath);
+  console.log(`• [${item.key}] Public URL generated: ${publicUrl.data.publicUrl}`);
+
+  itemObj.url = publicUrl.data.publicUrl;
+  itemObj.fullTextPDF = text;
+  console.log(`• [${item.key}] URL and full text added to item object`);
+}
+
 /**
  * Saves Zotero items to the database.
  *
@@ -421,9 +521,11 @@ export async function saveZoteroItems(
   allFetchedItems: ZoteroItem[][],
   lastModifiedVersion,
   groupId: string,
-  zoteroLib: any,
+  zoteroLib: Zotero,
   config: ZoteroTypes.ZoteroConfigOptions,
 ): Promise<void> {
+  const supabaseClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE!);
+
   const items = [] as ItemTableWrite[];
   const collections = [] as CollectionTableWrite[];
   const languages = [] as LanguageTableWrite[];
@@ -437,9 +539,12 @@ export async function saveZoteroItems(
 
   // const allItemToTags = await db.query.itemToTag.findMany();
   // const allItemToCollections = await db.query.itemToCollection.findMany();
+  const allItems = await db.query.item.findMany();
 
   fs.writeFileSync('lastModifiedVersion.json', JSON.stringify(lastModifiedVersion, null, 2));
   fs.writeFileSync('allFetchedItems.json', JSON.stringify(allFetchedItems, null, 2));
+
+  let uploadPromises: Promise<void>[] = [];
 
   for (const chunk of allFetchedItems) {
     if (!Array.isArray(chunk)) {
@@ -450,6 +555,15 @@ export async function saveZoteroItems(
       if (matchItemType(item)) {
         const itemObj = createItem(item);
         items.push(itemObj);
+
+        if (itemChecks(item)) {
+          uploadPromises.push(processFile(item, itemObj, groupId, zoteroLib, allItems, supabaseClient));
+        }
+
+        if (uploadPromises.length >= PROCESS_BATCH_SIZE) {
+          await Promise.all(uploadPromises);
+          uploadPromises = [];
+        }
 
         // processCollections(
         //   item,
@@ -474,6 +588,8 @@ export async function saveZoteroItems(
     }
   }
 
+  await Promise.all(uploadPromises);
+
   // await db.delete(itemToCollection).where(
   //   inArray(
   //     itemToCollection.itemKey,
@@ -495,7 +611,7 @@ export async function saveZoteroItems(
       .onConflictDoNothing()
 
   if (items.length > 0) {
-    console.log(`adding ${items.length} items`);
+    console.log(`Adding ${items.length} items`);
 
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
       const batch = items.slice(i, i + BATCH_SIZE);
@@ -510,7 +626,7 @@ export async function saveZoteroItems(
   }
 
   if (collections.length > 0) {
-    console.log(`adding ${collections.length} collections`);
+    console.log(`Adding ${collections.length} collections`);
     await db
       .insert(collection)
       .values(collections)
@@ -521,7 +637,7 @@ export async function saveZoteroItems(
   }
 
   if (itemToCollections.length > 0) {
-    console.log(`adding ${itemToCollections.length} itemToCollections`);
+    console.log(`Adding ${itemToCollections.length} itemToCollections`);
     await db
       .insert(itemToCollection)
       .values(itemToCollections)
@@ -532,7 +648,7 @@ export async function saveZoteroItems(
   }
 
   if (tags.length > 0) {
-    console.log(`adding ${tags.length} tags`);
+    console.log(`Adding ${tags.length} tags`);
     await db
       .insert(tag)
       .values(tags)
@@ -543,7 +659,7 @@ export async function saveZoteroItems(
   }
 
   if (itemToTags.length > 0) {
-    console.log(`adding ${itemToTags.length} itemToTags`);
+    console.log(`Adding ${itemToTags.length} itemToTags`);
     await db
       .insert(itemToTag)
       .values(itemToTags)
@@ -573,7 +689,7 @@ export async function lookupItems(keys: { keys: string[] }): Promise<ItemTableRe
     where: inArray(item.key, keys.keys),
   });
 
-  return items;
+  return items as ItemTableRead[];
 }
 
 /**

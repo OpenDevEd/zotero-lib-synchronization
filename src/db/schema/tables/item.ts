@@ -114,10 +114,21 @@ export const item = pgTable('item', {
   university: varchar(),
   studio: varchar(),
   websiteTitle: varchar(),
+  linkMode: varchar(),
+  contentType: varchar(),
+  filename: varchar(),
+  md5: varchar(),
+  mtime: varchar(),
+  charset: varchar(),
+
+  fullTextPDF: varchar(),
+  PDFCoverPageImage: varchar(),
+
   deleted: integer('deleted').default(0),
 
   languageName: varchar('languageName').references(() => language.name),
   groupExternalId: integer('groupExternalId').references(() => group.externalId),
+  parentItemKey: varchar('parentItemKey').references(() => item.key),
 
   collections: varchar().array(),
   tags: varchar().array(),

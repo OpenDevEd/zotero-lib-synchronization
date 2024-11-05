@@ -322,6 +322,7 @@ namespace ZoteroTypes {
     filename?: string;
     path?: string;
     fullresponse?: boolean;
+    group_id?: string;
   }
 }
 

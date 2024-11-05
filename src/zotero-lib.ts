@@ -2769,12 +2769,12 @@ class Zotero {
 
 
   public async download_attachment(args: ZoteroTypes.IDownloadAttachmentsArgs): Promise<void> {
-    const { key, filename, path, fullresponse } = args;
+    const { key, filename, path, fullresponse, group_id } = args;
     if (!key) {
       return this.message(1, 'key is required');
     }
     
-    const res = await axios.get(`https://api.zotero.org/groups/${this.config.group_id}/items/${key}/file`, {
+    const res = await axios.get(`https://api.zotero.org/groups/${group_id || this.config.group_id}/items/${key}/file`, {
       responseType: 'stream', 
       headers: {
         Authorization: `Bearer ${this.config.api_key}`,
@@ -2784,7 +2784,6 @@ class Zotero {
     if (!res) {
       return this.message(1, 'Failed to download attachment');
     }
-    logger.info(res.headers);
     
     const writer = fs.createWriteStream(filename);
   
@@ -2794,8 +2793,6 @@ class Zotero {
       writer.on('finish', resolve);
       writer.on('error', reject);
     });
-  
-    // 
   }
 
   /**
@@ -3652,7 +3649,7 @@ const syncToLocalDB = async (args: ZoteroTypes.ISyncToLocalDBArgs, zoteroLib: an
       itemsLastModifiedVersion[group.group] = lastModifiedVersion;
 
 
-      await saveZoteroItems(groupItems, itemsLastModifiedVersion, group.group, this, args);
+      await saveZoteroItems(groupItems, itemsLastModifiedVersion, group.group, zoteroLib, args);
       // Saving logic here...
       console.log('group saved into db ', group.group);
 
