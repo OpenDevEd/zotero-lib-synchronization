@@ -15,6 +15,7 @@ import { language } from '../db/schema/tables/language';
 import * as ZoteroTypes from '../types/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import pdf from 'pdf-parse';
+import { fromPath } from "pdf2pic"; // requires graphicsmagick and ghostscript
 
 const BATCH_SIZE = 500;
 const RETRY_ATTEMPTS = 3;
@@ -127,6 +128,9 @@ export type ZoteroItem = {
     linkMode?: string;
     contentType?: string;
     charset?: string;
+    md5?: string;
+    filename?: string;
+    mtime?: number;
   };
 };
 
@@ -248,7 +252,6 @@ function createItem(item: ZoteroItem): ItemTableRead {
       }
     }
     else if (column === 'tags') {
-      // convert tags to string array 
       obj.tags = item.data.tags.map(tag => tag.tag);
     }
     else if (column in item.data) {
@@ -257,32 +260,9 @@ function createItem(item: ZoteroItem): ItemTableRead {
   });
   if (item.data.language && item.data.language.length > 0)
     obj.languageName = item.data.language;
+  obj.parentItemKey = item.data.parentItem;
   return obj as ItemTableRead;
 }
-
-// /**
-//  * Creates a collection object from a collection key
-//  * @param {string} collection - The collection key
-//  * @returns {CollectionTableRead} The created collection object
-//  */
-// function createCollection(collection: ZoteroItem['data']['collections'][number]): CollectionTableRead {
-//   const obj = {} as CollectionTableWrite;
-//   obj.key = collection;
-//   return obj as CollectionTableRead;
-// }
-
-// /**
-//  * Creates an item-to-collection mapping object
-//  * @param {ItemTableRead} item - The item to map
-//  * @param {CollectionTableRead} collection - The collection to map to
-//  * @returns {ItemToCollectionTableRead} The created mapping object
-//  */
-// function createItemToCollection(item: ItemTableRead, collection: CollectionTableRead): ItemToCollectionTableWrite {
-//   const obj = {} as ItemToCollectionTableWrite;
-//   obj.itemKey = item.key;
-//   obj.collectionKey = collection.key;
-//   return obj as ItemToCollectionTableRead;
-// }
 
 /**
  * Creates an update object for handling conflicts during database operations
@@ -308,98 +288,6 @@ function onConflictDoUpdateExcept(pgTable: PgTable = item, except: string[] = ['
   return obj;
 }
 
-// /**
-//  * Creates a tag object from a Zotero tag
-//  * @param {Object} tag - The tag object from Zotero
-//  * @returns {TagTableRead} The created tag object
-//  */
-// function createTag(tag: ZoteroItem['data']['tags'][number]): TagTableRead {
-//   const obj = {} as TagTableWrite;
-//   obj.name = tag.tag;
-//   return obj as TagTableRead;
-// }
-
-// /**
-//  * Creates an item-to-tag mapping object
-//  * @param {ItemTableRead} item - The item to map
-//  * @param {TagTableRead} tag - The tag to map to
-//  * @returns {ItemToTagTableRead} The created mapping object
-//  */
-// function createItemToTag(item: ItemTableRead, tag: TagTableRead): ItemToTagTableWrite {
-//   const obj = {} as ItemToTagTableWrite;
-//   obj.itemKey = item.key;
-//   obj.tagName = tag.name;
-//   return obj as ItemToTagTableRead;
-// }
-
-// /**
-//  * Processes collections for an item, creating necessary objects and tracking deletions
-//  * @param {ZoteroItem} item - The item containing collections
-//  * @param {ItemTableRead} itemObj - The database item object
-//  * @param {CollectionTableWrite[]} collections - Array to store new collections
-//  * @param {ItemToCollectionTableWrite[]} itemToCollections - Array to store new mappings
-//  * @param {ItemToCollectionTableWrite[]} itemToCollectionsToDelete - Array to store mappings to delete
-//  * @param {ItemToCollectionTableRead[]} allItemToCollections - Existing mappings
-//  */
-// function processCollections(
-//   item: ZoteroItem,
-//   itemObj: ItemTableRead,
-//   collections: CollectionTableWrite[],
-//   itemToCollections: ItemToCollectionTableWrite[],
-//   itemToCollectionsToDelete: ItemToCollectionTableWrite[],
-//   allItemToCollections: ItemToCollectionTableRead[],
-// ) {
-//   if (item.data.collections) {
-//     item.data.collections.forEach((collection) => {
-//       let collectionObj = collections.find((c) => c.key === collection);
-//       if (!collectionObj) {
-//         collectionObj = createCollection(collection);
-//         collections.push(collectionObj);
-//       }
-//       itemToCollections.push(createItemToCollection(itemObj, collectionObj as CollectionTableRead));
-//     });
-//     itemToCollectionsToDelete.push(
-//       ...allItemToCollections.filter(
-//         (i) => i.itemKey === itemObj.key && !item.data.collections.includes(i.collectionKey),
-//       ),
-//     );
-//   }
-// }
-
-// /**
-//  * Processes tags for an item, creating necessary objects and tracking deletions
-//  * @param {ZoteroItem} item - The item containing tags
-//  * @param {ItemTableRead} itemObj - The database item object
-//  * @param {TagTableWrite[]} tags - Array to store new tags
-//  * @param {ItemToTagTableWrite[]} itemToTags - Array to store new mappings
-//  * @param {ItemToTagTableWrite[]} itemToTagsToDelete - Array to store mappings to delete
-//  * @param {ItemToTagTableRead[]} allItemToTags - Existing mappings
-//  */
-// function processTags(
-//   item: ZoteroItem,
-//   itemObj: ItemTableRead,
-//   tags: TagTableWrite[],
-//   itemToTags: ItemToTagTableWrite[],
-//   itemToTagsToDelete: ItemToTagTableWrite[],
-//   allItemToTags: ItemToTagTableRead[],
-// ) {
-//   if (item.data.tags) {
-//     item.data.tags.forEach((tag) => {
-//       let tagObj = tags.find((t) => t.name === tag.tag);
-//       if (!tagObj) {
-//         tagObj = createTag(tag);
-//         tags.push(tagObj);
-//       }
-//       itemToTags.push(createItemToTag(itemObj, tagObj as TagTableRead));
-//     });
-//     itemToTagsToDelete.push(
-//       ...allItemToTags.filter(
-//         (i) => i.itemKey === itemObj.key && !item.data.tags.map((t) => t.tag).includes(i.tagName),
-//       ),
-//     );
-//   }
-// }
-
 /**
  * Processes language information for an item
  * @param {ZoteroItem} item - The item containing language information
@@ -417,6 +305,13 @@ function processLanguage(
   }
 }
 
+/**
+ * Retries an asynchronous operation multiple times with a delay between attempts
+ * @param {() => Promise<T>} operation - The async operation to retry
+ * @param {number} maxAttempts - Maximum number of retry attempts (default: RETRY_ATTEMPTS)
+ * @param {number} delay - Delay in milliseconds between attempts (default: RETRY_DELAY)
+ * @returns {Promise<T | null>} The operation result or null if all attempts fail
+ */
 async function retryOperation<T>(
   operation: () => Promise<T>,
   maxAttempts: number = RETRY_ATTEMPTS,
@@ -436,6 +331,13 @@ async function retryOperation<T>(
   return null;
 }
 
+/**
+ * Downloads a file attachment from Zotero
+ * @param {ZoteroItem} item - The Zotero item containing the attachment
+ * @param {string} groupId - The group ID the item belongs to
+ * @param {Zotero} zoteroLib - The Zotero library instance
+ * @returns {Promise<boolean>} True if download successful, false otherwise
+ */
 async function downloadFile(item: ZoteroItem, groupId: string, zoteroLib: Zotero): Promise<boolean> {
   return await retryOperation(() =>
     zoteroLib.download_attachment({
@@ -446,6 +348,11 @@ async function downloadFile(item: ZoteroItem, groupId: string, zoteroLib: Zotero
   ) !== null;
 }
 
+/**
+ * Validates if an item meets the criteria for PDF processing
+ * @param {ZoteroItem} item - The item to check
+ * @returns {boolean} True if item meets all criteria, false otherwise
+ */
 function itemChecks(item: ZoteroItem) {
   if (item.data.itemType != "Attachment") {
     return false;
@@ -459,53 +366,172 @@ function itemChecks(item: ZoteroItem) {
   if (!item.data.contentType || item.data.contentType != "application/pdf") {
     return false;
   }
+  if (!item.data.md5) {
+    return false;
+  }
 
   return true;
 }
 
+/**
+ * Removes non-ASCII characters from a string
+ * @param {string} input - The string to clean
+ * @returns {string} The cleaned string containing only ASCII characters
+ */
+function cleanString(input: string): string {
+  let output = "";
+
+  for (let i = 0; i < input.length; i++) {
+    if (input.charCodeAt(i) < 127 && input.charCodeAt(i) >= 32) {
+      output += input.charAt(i);
+    }
+  }
+  return output;
+}
+
+/**
+ * Checks if a file needs to be processed based on existing database entry
+ * @param {ZoteroItem} item - The Zotero item to check
+ * @param {any} dbItem - The existing database item
+ * @param {ItemTableWrite} itemObj - The item object to update
+ * @param {string} groupId - The group ID
+ * @param {SupabaseClient} supabaseClient - The Supabase client instance
+ * @returns {Promise<boolean>} True if file needs processing, false otherwise
+ */
+async function checkExistingFile(item: ZoteroItem, dbItem: any, itemObj: ItemTableWrite, groupId: string, supabaseClient: SupabaseClient): Promise<boolean> {
+  if (!dbItem) return true;
+
+  if (dbItem.md5 == item.data.md5 && dbItem.mtime == item.data.mtime && dbItem.filename == item.data.filename) {
+    console.log(`• [${item.key}] File already exists in database`);
+    return false;
+  }
+
+  if (dbItem.filename != item.data.filename && dbItem.url) {
+    console.log(`• [${item.key}] File name changed, deleting old file`);
+    const deleteResult = await retryOperation(() =>
+      supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).remove([`${groupId}/${item.data.parentItem}/${item.key}/${dbItem.filename}.pdf`])
+    );
+    if (!deleteResult) {
+      console.log(`• ERROR [${item.key}] Failed to delete old file`);
+      return false;
+    }
+    itemObj.url = null;
+    itemObj.fullTextPDF = null;
+  }
+  return true;
+}
+
+/**
+ * Extracts text content and generates a cover image from a PDF file
+ * @param {string} filePath - Path to the PDF file
+ * @returns {Promise<{text: string; coverData: Buffer}>} Extracted text and cover image data
+ */
+async function extractPDFContent(filePath: string): Promise<{ text: string; coverData: Buffer }> {
+  const PDFData = fs.readFileSync(filePath);
+  const { text } = await pdf(PDFData);
+
+  const convert = fromPath(filePath, {
+    width: 2550,
+    height: 3300,
+    density: 330,
+  });
+
+  const { base64 } = await convert(1, { responseType: "base64" });
+  const coverData = Buffer.from(base64!, 'base64');
+
+  return { text, coverData };
+}
+
+/**
+ * Uploads PDF and cover image files to Supabase storage
+ * @param {ZoteroItem} item - The Zotero item
+ * @param {string} groupId - The group ID
+ * @param {Buffer} PDFData - The PDF file data
+ * @param {Buffer} coverData - The cover image data
+ * @param {'update' | 'upload'} action - Whether to update or upload new files
+ * @param {SupabaseClient} supabaseClient - The Supabase client instance
+ * @returns {Promise<{pdfUrl: string; coverUrl: string} | null>} Public URLs for uploaded files or null if upload fails
+ */
+async function uploadToSupabase(
+  item: ZoteroItem,
+  groupId: string,
+  PDFData: Buffer,
+  coverData: Buffer,
+  supabaseClient: SupabaseClient
+): Promise<{ pdfUrl: string; coverUrl: string } | null> {
+  const pdfPath = `${groupId}/${item.data.parentItem}/${item.key}/${item.data.filename}`;
+  const coverPath = `${groupId}/${item.data.parentItem}/${item.key}/cover.png`;
+
+  const uploadResult = await retryOperation(() =>
+    supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).upload(pdfPath, PDFData, {
+      upsert: true,
+      contentType: "application/pdf",
+    })
+  );
+
+  if (!uploadResult) {
+    console.log(`• ERROR [${item.key}] Failed to upload to Supabase`);
+    return null;
+  }
+
+  const uploadCoverResult = await retryOperation(() =>
+    supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).upload(coverPath, coverData, {
+      upsert: true,
+      contentType: "image/png",
+    })
+  );
+
+  if (!uploadCoverResult) {
+    console.log(`• ERROR [${item.key}] Failed to upload cover to Supabase`);
+    return null;
+  }
+
+  const publicUrl = supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).getPublicUrl(pdfPath);
+  const publicCoverUrl = supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).getPublicUrl(coverPath);
+
+  return {
+    pdfUrl: publicUrl.data.publicUrl,
+    coverUrl: publicCoverUrl.data.publicUrl
+  };
+}
+
+/**
+ * Processes a PDF file attachment: downloads, extracts content, and uploads to storage
+ * @param {ZoteroItem} item - The Zotero item with PDF attachment
+ * @param {ItemTableWrite} itemObj - The item object to update with file information
+ * @param {string} groupId - The group ID
+ * @param {Zotero} zoteroLib - The Zotero library instance
+ * @param {any[]} items - Existing database items
+ * @param {SupabaseClient} supabaseClient - The Supabase client instance
+ */
 async function processFile(item: ZoteroItem, itemObj: ItemTableWrite, groupId: string, zoteroLib: Zotero, items: any[], supabaseClient: SupabaseClient) {
+  const dbItem = items.find((i) => i.key == item.key);
+  
+  if (!(await checkExistingFile(item, dbItem, itemObj, groupId, supabaseClient))) {
+    return;
+  }
+
   console.log(`• [${item.key}] Attempting to download file`);
   if (!(await downloadFile(item, groupId, zoteroLib))) {
-    console.log(`• [${item.key}] Failed to download file`);
-    console.error(`Failed to download file for item ${item.key}`);
+    console.log(`• ERROR [${item.key}] Failed to download file with parent item ${item.data.parentItem}`);
     return;
   }
 
   console.log(`• [${item.key}] File downloaded successfully`);
 
-  const action = items.find((i) => i.key == item.key) ? "update" : "upload";
-  console.log(`• [${item.key}] Action determined: ${action}`);
-
-  const PDFData = fs.readFileSync(`temp/${item.key}.pdf`);
-  console.log(`• [${item.key}] PDF data read from temp file`);
-
-  const filePath = `${groupId}/${item.data.parentItem}/${item.key}/file.pdf`;
-  console.log(`• [${item.key}] File path created: ${filePath}`);
-
-  const { text } = await pdf(PDFData);
-
-  console.log(`• [${item.key}] PDF text extracted`);
-
-  fs.unlinkSync(`temp/${item.key}.pdf`);
+  const filePath = `temp/${item.key}.pdf`;
+  const { text, coverData } = await extractPDFContent(filePath);
+  const PDFData = fs.readFileSync(filePath);
+  
+  fs.unlinkSync(filePath);
   console.log(`• [${item.key}] Temp file deleted`);
 
-  const uploadResult = await retryOperation(() =>
-    supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!)[action](filePath, PDFData)
-  );
+  const urls = await uploadToSupabase(item, groupId, PDFData, coverData, supabaseClient);
+  if (!urls) return;
 
-  if (!uploadResult) {
-    console.log(`• [${item.key}] Failed to upload to Supabase`);
-    console.error(`Failed to upload file for item ${item.key}`);
-    return;
-  }
-
-  console.log(`• [${item.key}] File uploaded to Supabase successfully`);
-
-  const publicUrl = supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).getPublicUrl(filePath);
-  console.log(`• [${item.key}] Public URL generated: ${publicUrl.data.publicUrl}`);
-
-  itemObj.url = publicUrl.data.publicUrl;
-  itemObj.fullTextPDF = text;
+  itemObj.url = cleanString(urls.pdfUrl);
+  itemObj.fullTextPDF = cleanString(text);
+  itemObj.PDFCoverPageImage = cleanString(urls.coverUrl);
   console.log(`• [${item.key}] URL and full text added to item object`);
 }
 
@@ -534,11 +560,6 @@ export async function saveZoteroItems(
   const itemToCollections = [] as ItemToCollectionTableWrite[];
   const itemToTags = [] as ItemToTagTableWrite[];
 
-  // const itemToCollectionsToDelete = [] as ItemToCollectionTableWrite[];
-  // const itemToTagsToDelete = [] as ItemToTagTableWrite[];
-
-  // const allItemToTags = await db.query.itemToTag.findMany();
-  // const allItemToCollections = await db.query.itemToCollection.findMany();
   const allItems = await db.query.item.findMany();
 
   fs.writeFileSync('lastModifiedVersion.json', JSON.stringify(lastModifiedVersion, null, 2));
@@ -565,44 +586,12 @@ export async function saveZoteroItems(
           uploadPromises = [];
         }
 
-        // processCollections(
-        //   item,
-        //   itemObj,
-        //   collections,
-        //   itemToCollections,
-        //   itemToCollectionsToDelete,
-        //   allItemToCollections,
-        // );
-
-        // processTags(
-        //   item,
-        //   itemObj,
-        //   tags,
-        //   itemToTags,
-        //   itemToTagsToDelete,
-        //   allItemToTags,
-        // );
-
         processLanguage(item, languages);
       }
     }
   }
 
   await Promise.all(uploadPromises);
-
-  // await db.delete(itemToCollection).where(
-  //   inArray(
-  //     itemToCollection.itemKey,
-  //     itemToCollectionsToDelete.map((i) => i.itemKey),
-  //   ),
-  // );
-
-  // await db.delete(itemToTag).where(
-  //   inArray(
-  //     itemToTag.itemKey,
-  //     itemToTagsToDelete.map((i) => i.itemKey),
-  //   ),
-  // );
 
   if (languages.length > 0)
     await db
@@ -612,6 +601,7 @@ export async function saveZoteroItems(
 
   if (items.length > 0) {
     console.log(`Adding ${items.length} items`);
+    items.sort((a, b) => (a.parentItemKey ? 1 : -1) - (b.parentItemKey ? 1 : -1));
 
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
       const batch = items.slice(i, i + BATCH_SIZE);

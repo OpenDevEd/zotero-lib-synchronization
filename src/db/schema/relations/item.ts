@@ -13,5 +13,5 @@ export const itemRelations = relations(item, ({ many, one }) => ({
     group: one(group, {
         fields: [item.groupExternalId],
         references: [group.externalId]
-    }), 
+    }),
 }));
