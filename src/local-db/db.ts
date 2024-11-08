@@ -14,8 +14,9 @@ import { PgTable } from 'drizzle-orm/pg-core';
 import { language } from '../db/schema/tables/language';
 import * as ZoteroTypes from '../types/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import pdf from 'pdf-parse';
-import { fromPath } from "pdf2pic"; // requires graphicsmagick and ghostscript
+import pdf from "pdf-parse";
+import { fromBuffer } from "pdf2pic"; // requires graphicsmagick and ghostscript
+import { v4 as uuidv4 } from 'uuid';
 
 const BATCH_SIZE = 500;
 const RETRY_ATTEMPTS = 3;
@@ -402,17 +403,18 @@ async function checkExistingFile(item: ZoteroItem, dbItem: any, itemObj: ItemTab
   if (!dbItem) return true;
 
   if (dbItem.md5 == item.data.md5 && dbItem.mtime == item.data.mtime && dbItem.filename == item.data.filename) {
-    console.log(`• [${item.key}] File already exists in database`);
+    console.log(`• ERROR [${item.data.parentItem} / ${item.key}] File already exists in database`);
     return false;
   }
 
   if (dbItem.filename != item.data.filename && dbItem.url) {
-    console.log(`• [${item.key}] File name changed, deleting old file`);
+    console.log(`• [${item.data.parentItem} / ${item.key}] File name changed, deleting old file`);
+    const fileName = dbItem.url.split('/').pop();
     const deleteResult = await retryOperation(() =>
-      supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).remove([`${groupId}/${item.data.parentItem}/${item.key}/${dbItem.filename}.pdf`])
+      supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).remove([`${groupId}/${item.data.parentItem}/${item.key}/${fileName}`])
     );
-    if (!deleteResult) {
-      console.log(`• ERROR [${item.key}] Failed to delete old file`);
+    if (!deleteResult || deleteResult.error) {
+      console.log(`• ERROR [${item.data.parentItem} / ${item.key}] Failed to delete old file (${JSON.stringify(deleteResult, null, 2)})`);
       return false;
     }
     itemObj.url = null;
@@ -423,23 +425,54 @@ async function checkExistingFile(item: ZoteroItem, dbItem: any, itemObj: ItemTab
 
 /**
  * Extracts text content and generates a cover image from a PDF file
- * @param {string} filePath - Path to the PDF file
- * @returns {Promise<{text: string; coverData: Buffer}>} Extracted text and cover image data
+ * @param {Buffer} PDFData - Buffer of the PDF file
+ * @returns {Promise<{text: string; coverData: Buffer, ratio: number}>} Extracted text and cover image data
  */
-async function extractPDFContent(filePath: string): Promise<{ text: string; coverData: Buffer }> {
-  const PDFData = fs.readFileSync(filePath);
-  const { text } = await pdf(PDFData);
+async function extractPDFContent(PDFData: Buffer): Promise<{ text: string; coverData: Buffer; ratio: number }> {
+  let ratio: number | undefined = undefined;
 
-  const convert = fromPath(filePath, {
+  function renderPage(pageData: any) {
+    const viewPort = pageData.getViewport(1);
+
+    const render_options = {
+      normalizeWhitespace: false,
+      disableCombineTextItems: false,
+    }
+
+    if (ratio == undefined && viewPort.width && viewPort.height) {
+      ratio = viewPort.width / viewPort.height;
+    }
+
+    return pageData.getTextContent(render_options)
+      .then(function (textContent: { items: Array<{ str: string; transform: number[] }> }) {
+        let lastY: number | undefined, text = '';
+        for (let item of textContent.items) {
+          if (lastY == item.transform[5] || !lastY) {
+            text += item.str;
+          }
+          else {
+            text += '\n' + item.str;
+          }
+          lastY = item.transform[5];
+        }
+        return text;
+      });
+  }
+
+  const { text } = await pdf(PDFData, {
+    pagerender: renderPage,
+  })
+
+  const convert = fromBuffer(PDFData, {
     width: 2550,
-    height: 3300,
+    height: 2550 / (ratio || 1),
     density: 330,
   });
 
   const { base64 } = await convert(1, { responseType: "base64" });
   const coverData = Buffer.from(base64!, 'base64');
 
-  return { text, coverData };
+  return { text, coverData, ratio: ratio === undefined ? 0 : ratio };
 }
 
 /**
@@ -459,7 +492,8 @@ async function uploadToSupabase(
   coverData: Buffer,
   supabaseClient: SupabaseClient
 ): Promise<{ pdfUrl: string; coverUrl: string } | null> {
-  const pdfPath = `${groupId}/${item.data.parentItem}/${item.key}/${item.data.filename}`;
+  const randomUUID = uuidv4();
+  const pdfPath = `${groupId}/${item.data.parentItem}/${item.key}/${randomUUID}.pdf`;
   const coverPath = `${groupId}/${item.data.parentItem}/${item.key}/cover.png`;
 
   const uploadResult = await retryOperation(() =>
@@ -469,8 +503,8 @@ async function uploadToSupabase(
     })
   );
 
-  if (!uploadResult) {
-    console.log(`• ERROR [${item.key}] Failed to upload to Supabase`);
+  if (!uploadResult || uploadResult.error) {
+    console.log(`• ERROR [${item.data.parentItem} / ${item.key}] Failed to upload to Supabase (${JSON.stringify(uploadResult, null, 2) })`);
     return null;
   }
 
@@ -481,8 +515,8 @@ async function uploadToSupabase(
     })
   );
 
-  if (!uploadCoverResult) {
-    console.log(`• ERROR [${item.key}] Failed to upload cover to Supabase`);
+  if (!uploadCoverResult || uploadCoverResult.error) {
+    console.log(`• ERROR [${item.data.parentItem} / ${item.key}] Failed to upload cover to Supabase (${JSON.stringify(uploadCoverResult, null, 2)})`);
     return null;
   }
 
@@ -505,26 +539,30 @@ async function uploadToSupabase(
  * @param {SupabaseClient} supabaseClient - The Supabase client instance
  */
 async function processFile(item: ZoteroItem, itemObj: ItemTableWrite, groupId: string, zoteroLib: Zotero, items: any[], supabaseClient: SupabaseClient) {
+  // if (item.key != "C8LXSEUU")
+  //   return;
+
   const dbItem = items.find((i) => i.key == item.key);
-  
+
   if (!(await checkExistingFile(item, dbItem, itemObj, groupId, supabaseClient))) {
     return;
   }
 
-  console.log(`• [${item.key}] Attempting to download file`);
   if (!(await downloadFile(item, groupId, zoteroLib))) {
-    console.log(`• ERROR [${item.key}] Failed to download file with parent item ${item.data.parentItem}`);
+    console.log(`• ERROR [${item.data.parentItem} / ${item.key}] Failed to download file`);
     return;
   }
 
-  console.log(`• [${item.key}] File downloaded successfully`);
-
   const filePath = `temp/${item.key}.pdf`;
-  const { text, coverData } = await extractPDFContent(filePath);
   const PDFData = fs.readFileSync(filePath);
+  const { text, coverData, ratio } = await extractPDFContent(PDFData);
   
   fs.unlinkSync(filePath);
-  console.log(`• [${item.key}] Temp file deleted`);
+  
+  if (ratio == 0) {
+    console.log(`• ERROR [${item.data.parentItem} / ${item.key}] Failed to extract image dimensions`);
+    return;
+  }
 
   const urls = await uploadToSupabase(item, groupId, PDFData, coverData, supabaseClient);
   if (!urls) return;
@@ -532,7 +570,6 @@ async function processFile(item: ZoteroItem, itemObj: ItemTableWrite, groupId: s
   itemObj.url = cleanString(urls.pdfUrl);
   itemObj.fullTextPDF = cleanString(text);
   itemObj.PDFCoverPageImage = cleanString(urls.coverUrl);
-  console.log(`• [${item.key}] URL and full text added to item object`);
 }
 
 /**
