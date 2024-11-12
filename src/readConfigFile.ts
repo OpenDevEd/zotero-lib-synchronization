@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { ZoteroConfig, ZoteroConfigOptions } from './types/config';
 
 const os = require('os');
@@ -15,7 +14,7 @@ export function readConfigFile(args: ZoteroConfig): ZoteroConfigOptions {
     api_key: '',
   };
 
-  const configPath: string = [
+  const configPath: string | undefined = [
     args.config,
     'zotero-cli.toml',
     `${os.homedir()}/.config/zotero-cli/zotero-cli.toml`,

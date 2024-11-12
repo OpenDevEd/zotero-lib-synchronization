@@ -12,7 +12,7 @@ import { tag } from '../db/schema/tables/tag';
 import { itemToTag } from '../db/schema/tables/itemToTag';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { language } from '../db/schema/tables/language';
-import * as ZoteroTypes from '../types/config';
+import { ZoteroTypes } from './../zotero-interface';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import pdf from "pdf-parse";
 import { fromBuffer } from "pdf2pic"; // requires graphicsmagick and ghostscript
@@ -354,7 +354,7 @@ async function downloadFile(item: ZoteroItem, groupId: string, zoteroLib: Zotero
  * @param {ZoteroItem} item - The item to check
  * @returns {boolean} True if item meets all criteria, false otherwise
  */
-function itemChecks(item: ZoteroItem) {
+function itemChecks(item: ZoteroItem): boolean {
   if (item.data.itemType != "Attachment") {
     return false;
   }
@@ -585,7 +585,7 @@ export async function saveZoteroItems(
   lastModifiedVersion,
   groupId: string,
   zoteroLib: Zotero,
-  config: ZoteroTypes.ZoteroConfigOptions,
+  config: ZoteroTypes.ISyncToLocalDBArgs,
 ): Promise<void> {
   const supabaseClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE!);
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { CompareArgs, Deduplicate_func_result } from '../types/compare';
 import { Creator, Item } from '../types/item';
 
@@ -18,9 +17,9 @@ export default async function compare(item: Item, item2: Item, args: CompareArgs
 
   // compare the two objects
   if (!args.mode) {
-    if ((await CompareAllFields(temp, temp2)) && (await compareCreators(temp.creators, temp2.creators)))
+    if ((await CompareAllFields(temp, temp2)) && (await compareCreators(temp.creators || [], temp2.creators || [])))
       return { result: true, reason: 'identical' };
-    else if ((await CompareAllFieldsLowerCase(temp, temp2)) && (await compareCreators(temp.creators, temp2.creators)))
+    else if ((await CompareAllFieldsLowerCase(temp, temp2)) && (await compareCreators(temp.creators || [], temp2.creators || [])))
       return { result: true, reason: 'identical_in_lowercase' };
     else if (await compareIdenticalInSeveralFields(temp, temp2))
       return { result: true, reason: 'identicalInTitleAndAuthors' };
@@ -28,13 +27,13 @@ export default async function compare(item: Item, item2: Item, args: CompareArgs
   } else {
     if (
       (await CompareAllFields(temp, temp2)) &&
-      (await compareCreators(temp.creators, temp2.creators)) &&
+      (await compareCreators(temp.creators || [], temp2.creators || [])) &&
       args.mode === 'identical'
     )
       return { result: true, reason: 'identical' };
     else if (
       (await CompareAllFieldsLowerCase(temp, temp2)) &&
-      (await compareCreators(temp.creators, temp2.creators)) &&
+      (await compareCreators(temp.creators || [], temp2.creators || [])) &&
       args.mode === 'identical_in_lowercase'
     )
       return { result: true, reason: 'identical_in_lowercase' };
@@ -72,7 +71,7 @@ async function compareCreators(creators: Creator[], creators2: Creator[]): Promi
   }
   return true;
 }
-//@ts-ignore
+
 async function DeleteExtra(item: Item): Promise<Item> {
   let temp = item;
 
@@ -88,7 +87,6 @@ async function DeleteExtra(item: Item): Promise<Item> {
   return temp;
 }
 
-//@ts-ignore
 async function CompareAllFields(item: Item, item2: Item): Promise<boolean> {
   // compare the two objects
   // get all the keys of the object
@@ -98,7 +96,7 @@ async function CompareAllFields(item: Item, item2: Item): Promise<boolean> {
 
   // compare creators
 
-  if (!(await compareCreators(item.creators, item2.creators))) return false;
+  if (!(await compareCreators(item.creators || [], item2.creators || []))) return false;
 
   // remove creator key
   keys.splice(keys.indexOf('creators'), 1);
@@ -227,14 +225,13 @@ async function compareIdenticalInSeveralFields(item: Item, item2: Item): Promise
     }
   }
 
-  if (await compareCreators(item.creators, item2.creators)) {
+  if (await compareCreators(item.creators || [], item2.creators || [])) {
     score++;
   }
 
   return score > 1;
 }
 
-// //@ts-ignore
 // var stringSimilarity = require('string-similarity');
 /**
  * This function compares two objects based on their DOI values and returns a boolean indicating if the DOI values are the same.

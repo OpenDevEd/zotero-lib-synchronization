@@ -7,7 +7,7 @@ import { stat, unlink, writeFile } from 'fs/promises';
  * @param lockTimeout - time in seconds that the lock file is valid
  * @returns boolean
  */
-export async function checkForValidLockFile(lockfile: string, lockTimeout: number | string) {
+export async function checkForValidLockFile(lockfile: string, lockTimeout: number | string | undefined) {
   const threshold = Date.now() - Number(lockTimeout) * 1000;
   if (!existsSync(lockfile)) {
     console.log('no lock file found');

@@ -9,16 +9,15 @@ import Zotero from '../src/zotero-lib';
 //   };
 // }
 
-const itemKey = 'TEACS38K';
-//@ts-ignore
-const zotero = new Zotero({ 'group-id': '2129771', verbose: false });
+// const itemKey = 'TEACS38K';
+// const zotero = new Zotero({ 'group-id': '2129771', verbose: false });
 
-(async () => {
-  let item = await zotero.item({ key: itemKey, verbose: false });
-  console.log(item.extra.split('\n'));
-  let doi = item.extra.split('\n').filter((i) => i.includes('DOI'));
-  console.log(doi);
-})();
+// (async () => {
+//   let item = await zotero.item({ key: itemKey, verbose: false });
+//   console.log(item.extra.split('\n'));
+//   let doi = item.extra.split('\n').filter((i) => i.includes('DOI'));
+//   console.log(doi);
+// })();
 
 // const itemJSON = itemOutput.replace(/^[^{]+/, '');
 // const item: Item = JSON.parse(itemJSON);

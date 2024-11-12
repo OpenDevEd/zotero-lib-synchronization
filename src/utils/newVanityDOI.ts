@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { NewVanityDOIItem } from '../types/newVanityDOI';
 
 const fs = require('fs');
@@ -13,7 +12,7 @@ const os = require('os');
 export default function newVanityDOI(item: NewVanityDOIItem, group_id: string, crossref_user: string) {
   let doi = '';
   if (item.data.callNumber && item.data.callNumber != '') {
-    const crossRefUserIn: string = [
+    const crossRefUserIn: string | undefined = [
       crossref_user,
       'crossref-user.json',
       `${os.homedir()}/.config/zotero-cli/crossref-user.json`,

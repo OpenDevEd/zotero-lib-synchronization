@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { ZoteroTypes } from '../zotero-interface';
 
 const he = require('he');
@@ -11,7 +10,7 @@ export function as_value(value: any): any {
 }
 
 export function as_array(value: any): any {
-  let result = [];
+  let result: any[] = [];
   if (value === undefined) {
     return value;
   }
@@ -56,8 +55,8 @@ export function getCanonicalURL(args: ZoteroTypes.IGetZoteroDataXargs, element: 
     element.data.url != '' && !element.bib.match(element.data.url)
       ? ` Available from <a href="${he.encode(element.data.url)}">${he.encode(element.data.url)}</a>.`
       : '';
-  url = element.data.url.match(/docs.edtechhub.org|docs.opendeved.net/)
-    ? ' (' + urlify(element.data.url, element.library.id, element.key, args.zgroup, args.zkey, args.openinzotero) + ')'
+  url = element.data.url?.match(/docs.edtechhub.org|docs.opendeved.net/)
+    ? ' (' + urlify(element.data.url, element.library.id, element.key, args.zgroup || '', args.zkey || '', args.openinzotero || false) + ')'
     : url;
   return url;
 }

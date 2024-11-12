@@ -1,4 +1,3 @@
-// @ts-nocheck
 import logger from '../logger';
 import { Item } from '../types/item';
 import { Zenodo } from '../types/zenodo';
@@ -30,8 +29,7 @@ const Sugar = require('sugar');
 // Also, we need a new "zenodoRecord: 123" and "zenodoConcept: 123"
 function zenodoParseIDFromZoteroRecord(item: Item): string {
   logger.info('item = %O', item);
-  // @ts-ignore
-  const extra = item.extra.split('\n');
+  const extra = item.extra?.split('\n');
   // let doi = '';
   let id = '';
   /*  extra.forEach((element) => {
@@ -42,7 +40,7 @@ function zenodoParseIDFromZoteroRecord(item: Item): string {
     }
   }); */
   let candidate = '';
-  extra.forEach((element) => {
+  extra?.forEach((element) => {
     console.log(element);
     let res = element.match(
       /^\s*(doi:\s*10\.5281\/zenodo\.|previousDOI:\s*10\.5281\/zenodo\.|ZenodoArchiveID:\s*|Archive: https:\/\/zenodo.org\/record\/)(\d+)\s*$/i,
@@ -60,7 +58,7 @@ function zenodoParseIDFromZoteroRecord(item: Item): string {
 
   if (id.length === 0) {
     console.log('not found id in doi, searching in archive');
-    const archiveLine = extra.find((line) => line.startsWith('Archive: https://zenodo.org/record/'));
+    const archiveLine = extra?.find((line) => line.startsWith('Archive: https://zenodo.org/record/'));
 
     if (archiveLine) {
       const parts = archiveLine.split('/');
@@ -80,8 +78,7 @@ export default async function formatAsZenodoJson(
   // const { creators = [] } = item;
   logger.info('formatAsZenodoJson');
 
-  // @ts-ignore
-  const authorDataIn: string = [
+  const authorDataIn: string | undefined = [
     args.author_data,
     'author-data.json',
     `${os.homedir()}/.config/zotero-cli/author-data.json`,
@@ -100,9 +97,9 @@ export default async function formatAsZenodoJson(
   */
   // Should convert more items. https://developers.zenodo.org/#representation
   const zenodoID = zenodoParseIDFromZoteroRecord(item);
-  let updateDoc = {
+  let updateDoc: Zenodo = {
     id: zenodoID,
-    title: item.title,
+    title: item.title ?? '',
     description: item.abstractNote ? item.abstractNote : '[No description available.]',
     authors: [],
     publication_date: '',
@@ -120,7 +117,6 @@ export default async function formatAsZenodoJson(
 
   if (Array.isArray(item.creators) && item.creators.length) {
     // logger.info('formatAsZenodoJson: adding name from zotero');
-    // @ts-ignore
     updateDoc.authors = item.creators.map(function (c) {
       const fullname = c['name'] ? c['name'] : `${c['lastName']}, ${c['firstName']}`;
       let res = {
@@ -143,8 +139,7 @@ export default async function formatAsZenodoJson(
     doi = item.doi;
     logger.info(`formatAsZenodoJson: DOI from item.doi: ${doi}`);
   } else {
-    // @ts-ignore
-    extra.split('\n').forEach((element) => {
+    extra?.split('\n').forEach((element) => {
       var mymatch = element.match(/^DOI\:\s*(.*?)\s*$/);
       if (mymatch) {
         doi = mymatch[1];
@@ -196,6 +191,5 @@ export default async function formatAsZenodoJson(
   updateDoc['publication_date'] = isodate;
   // logger.info("formatAsZenodoJson updateDoc=" + JSON.stringify(updateDoc, null, 2))
 
-  // @ts-ignore
   return updateDoc;
 }

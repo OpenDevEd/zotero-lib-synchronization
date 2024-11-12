@@ -23,7 +23,7 @@ export type ItemReturn = {
 
 export type Item = {
   key: string;
-  version: number;
+  version?: number;
   itemType: string;
   title?: string;
   parentItem?: string;
@@ -138,7 +138,7 @@ export type Item = {
   university?: string;
   studio?: string;
   websiteTitle?: string;
-  tags: Tag[];
+  tags?: Tag[];
   inconsistent: boolean;
   // group_id?: number;
   // group: Group;
