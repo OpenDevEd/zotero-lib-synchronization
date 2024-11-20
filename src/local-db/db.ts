@@ -255,6 +255,9 @@ function createItem(item: ZoteroItem): ItemTableRead {
     else if (column === 'tags') {
       obj.tags = item.data.tags.map(tag => tag.tag);
     }
+    else if (column === 'dateAdded' || column === 'dateModified') {
+      obj[column] = new Date(item.data[column]);
+    }
     else if (column in item.data) {
       obj[column] = item.data[column];
     }
@@ -340,13 +343,17 @@ async function retryOperation<T>(
  * @returns {Promise<boolean>} True if download successful, false otherwise
  */
 async function downloadFile(item: ZoteroItem, groupId: string, zoteroLib: Zotero): Promise<boolean> {
+  if (fs.existsSync(`temp/${item.key}.pdf`)) {
+    fs.unlinkSync(`temp/${item.key}.pdf`);
+  }
+
   return await retryOperation(() =>
     zoteroLib.download_attachment({
       key: item.key,
       filename: `temp/${item.key}.pdf`,
       group_id: groupId,
     })
-  ) !== null;
+  ) === null;
 }
 
 /**

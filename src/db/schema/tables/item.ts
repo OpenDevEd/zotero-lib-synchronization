@@ -120,6 +120,8 @@ export const item = pgTable('item', {
   md5: varchar(),
   mtime: varchar(),
   charset: varchar(),
+  dateAdded: timestamp('dateAdded'),
+  dateModified: timestamp('dateModified'),
 
   fullTextPDF: varchar(),
   PDFCoverPageImage: varchar(),
