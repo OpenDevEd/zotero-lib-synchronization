@@ -2,7 +2,7 @@ import * as fs from 'fs';
 
 import { Item } from '../types/item';
 import { db } from '../db/index';
-import { eq, getTableColumns, inArray, InferInsertModel, InferSelectModel, sql } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray, InferInsertModel, InferSelectModel, sql } from 'drizzle-orm';
 import { group } from '../db/schema/tables/group';
 import { item } from '../db/schema/tables/item';
 import { collection } from '../db/schema/tables/collection';
@@ -14,8 +14,8 @@ import { PgTable } from 'drizzle-orm/pg-core';
 import { language } from '../db/schema/tables/language';
 import { ZoteroTypes } from './../zotero-interface';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import pdf from "pdf-parse";
-import { fromBuffer } from "pdf2pic"; // requires graphicsmagick and ghostscript
+import pdf from 'pdf-parse';
+import { fromBuffer } from 'pdf2pic'; // requires graphicsmagick and ghostscript
 import { v4 as uuidv4 } from 'uuid';
 
 const BATCH_SIZE = 500;
@@ -171,7 +171,49 @@ export type ZoteroGroup = {
   };
 };
 
+export type ZoteroCollection = {
+  version: number;
+  library: {
+    type: string;
+    id: number;
+    name: string;
+    links: {
+      alternate: {
+        href: string;
+        type: string;
+      };
+    };
+  };
+  links: {
+    self: {
+      href: string;
+      type: string;
+    };
+    alternate: {
+      href: string;
+      type: string;
+    };
+    up?: {
+      href: string;
+      type: string;
+    };
+  };
+  meta: {
+    numCollections: number;
+    numItems: number;
+  };
+  data: {
+    key: string;
+    version: number;
+    name: string;
+    parentCollection: string | boolean;
+    relations: Record<string, unknown>;
+    deleted?: boolean;
+  };
+};
+
 const itemColumns = Object.values(getTableColumns(item)).map((col: any) => col.name);
+const collectionColumns = Object.values(getTableColumns(collection)).map((col: any) => col.name);
 
 /**
  * Retrieves all groups from the database.
@@ -247,24 +289,23 @@ function createItem(item: ZoteroItem): ItemTableRead {
   obj.version = item.version;
   obj.groupExternalId = Number(item.library.id);
   itemColumns.forEach((column) => {
-    if (column == "relations") {
+    if (column == 'relations') {
       if (item.data.relations && Object.keys(item.data.relations).length > 0) {
         obj.relations = JSON.stringify(item.data.relations);
       }
-    }
-    else if (column === 'tags') {
-      obj.tags = item.data.tags.map(tag => tag.tag);
-    }
-    else if (column === 'dateAdded' || column === 'dateModified') {
+    } else if (column === 'tags') {
+      obj.tags = item.data.tags.map((tag) => tag.tag);
+    } else if (column === 'dateAdded' || column === 'dateModified') {
       obj[column] = new Date(item.data[column]);
-    }
-    else if (column in item.data) {
+    } else if (column == 'parentItem') {
+      if (typeof item.data.parentItem == 'string' && item.data.parentItem.length > 0) {
+        obj.parentItem = item.data.parentItem;
+      }
+    } else if (column in item.data) {
       obj[column] = item.data[column];
     }
   });
-  if (item.data.language && item.data.language.length > 0)
-    obj.languageName = item.data.language;
-  obj.parentItemKey = item.data.parentItem;
+  if (item.data.language && item.data.language.length > 0) obj.languageName = item.data.language;
   return obj as ItemTableRead;
 }
 
@@ -274,7 +315,10 @@ function createItem(item: ZoteroItem): ItemTableRead {
  * @param {string[]} except - Column names to exclude from updates
  * @returns {Object} The update object with SQL expressions
  */
-function onConflictDoUpdateExcept(pgTable: PgTable = item, except: string[] = ['id', 'createdAt']): Record<string, any> {
+function onConflictDoUpdateExcept(
+  pgTable: PgTable = item,
+  except: string[] = ['id', 'createdAt'],
+): Record<string, any> {
   const columnNames: string[] = Object.values(getTableColumns(pgTable)).map((col) => col.name);
 
   const obj = {
@@ -284,9 +328,7 @@ function onConflictDoUpdateExcept(pgTable: PgTable = item, except: string[] = ['
       }
       return acc;
     }, {}),
-    ...(except.includes('updatedAt')
-      ? {}
-      : { updatedAt: sql`now()` }),
+    ...(except.includes('updatedAt') ? {} : { updatedAt: sql`now()` }),
   };
 
   return obj;
@@ -297,10 +339,7 @@ function onConflictDoUpdateExcept(pgTable: PgTable = item, except: string[] = ['
  * @param {ZoteroItem} item - The item containing language information
  * @param {LanguageTableWrite[]} languages - Array to store new languages
  */
-function processLanguage(
-  item: ZoteroItem,
-  languages: LanguageTableWrite[],
-) {
+function processLanguage(item: ZoteroItem, languages: LanguageTableWrite[]) {
   if (item.data.language && item.data.language.length > 0) {
     if (!languages.find((language) => language.name == item.data.language))
       languages.push({
@@ -329,7 +368,7 @@ async function retryOperation<T>(
     } catch (e) {
       attempts++;
     }
-    await new Promise(resolve => setTimeout(resolve, delay));
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
 
   return null;
@@ -347,13 +386,15 @@ async function downloadFile(item: ZoteroItem, groupId: string, zoteroLib: Zotero
     fs.unlinkSync(`temp/${item.key}.pdf`);
   }
 
-  return await retryOperation(() =>
-    zoteroLib.download_attachment({
-      key: item.key,
-      filename: `temp/${item.key}.pdf`,
-      group_id: groupId,
-    })
-  ) === null;
+  return (
+    (await retryOperation(() =>
+      zoteroLib.download_attachment({
+        key: item.key,
+        filename: `temp/${item.key}.pdf`,
+        group_id: groupId,
+      }),
+    )) === null
+  );
 }
 
 /**
@@ -362,16 +403,16 @@ async function downloadFile(item: ZoteroItem, groupId: string, zoteroLib: Zotero
  * @returns {boolean} True if item meets all criteria, false otherwise
  */
 function itemChecks(item: ZoteroItem): boolean {
-  if (item.data.itemType != "Attachment") {
+  if (item.data.itemType != 'Attachment') {
     return false;
   }
-  if (!item.data.parentItem || item.data.parentItem == "") {
+  if (!item.data.parentItem || item.data.parentItem == '') {
     return false;
   }
   // if (!item.data.tags || !item.data.tags.find((tag) => tag.tag == "_publish")) {
   //   return false;
   // }
-  if (!item.data.contentType || item.data.contentType != "application/pdf") {
+  if (!item.data.contentType || item.data.contentType != 'application/pdf') {
     return false;
   }
   if (!item.data.md5) {
@@ -387,7 +428,7 @@ function itemChecks(item: ZoteroItem): boolean {
  * @returns {string} The cleaned string containing only ASCII characters
  */
 function cleanString(input: string): string {
-  let output = "";
+  let output = '';
 
   for (let i = 0; i < input.length; i++) {
     if (input.charCodeAt(i) < 127 && input.charCodeAt(i) >= 32) {
@@ -406,7 +447,13 @@ function cleanString(input: string): string {
  * @param {SupabaseClient} supabaseClient - The Supabase client instance
  * @returns {Promise<boolean>} True if file needs processing, false otherwise
  */
-async function checkExistingFile(item: ZoteroItem, dbItem: any, itemObj: ItemTableWrite, groupId: string, supabaseClient: SupabaseClient): Promise<boolean> {
+async function checkExistingFile(
+  item: ZoteroItem,
+  dbItem: any,
+  itemObj: ItemTableWrite,
+  groupId: string,
+  supabaseClient: SupabaseClient,
+): Promise<boolean> {
   if (!dbItem) return true;
 
   if (dbItem.md5 == item.data.md5 && dbItem.mtime == item.data.mtime && dbItem.filename == item.data.filename) {
@@ -418,10 +465,18 @@ async function checkExistingFile(item: ZoteroItem, dbItem: any, itemObj: ItemTab
     console.log(`• [${item.data.parentItem} / ${item.key}] File name changed, deleting old file`);
     const fileName = dbItem.url.split('/').pop();
     const deleteResult = await retryOperation(() =>
-      supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).remove([`${groupId}/${item.data.parentItem}/${item.key}/${fileName}`])
+      supabaseClient.storage
+        .from(process.env.SUPABASE_STORAGE_BUCKET!)
+        .remove([`${groupId}/${item.data.parentItem}/${item.key}/${fileName}`]),
     );
     if (!deleteResult || deleteResult.error) {
-      console.log(`• ERROR [${item.data.parentItem} / ${item.key}] Failed to delete old file (${JSON.stringify(deleteResult, null, 2)})`);
+      console.log(
+        `• ERROR [${item.data.parentItem} / ${item.key}] Failed to delete old file (${JSON.stringify(
+          deleteResult,
+          null,
+          2,
+        )})`,
+      );
       return false;
     }
     itemObj.url = null;
@@ -444,20 +499,21 @@ async function extractPDFContent(PDFData: Buffer): Promise<{ text: string; cover
     const render_options = {
       normalizeWhitespace: false,
       disableCombineTextItems: false,
-    }
+    };
 
     if (ratio == undefined && viewPort.width && viewPort.height) {
       ratio = viewPort.width / viewPort.height;
     }
 
-    return pageData.getTextContent(render_options)
+    return pageData
+      .getTextContent(render_options)
       .then(function (textContent: { items: Array<{ str: string; transform: number[] }> }) {
-        let lastY: number | undefined, text = '';
+        let lastY: number | undefined,
+          text = '';
         for (let item of textContent.items) {
           if (lastY == item.transform[5] || !lastY) {
             text += item.str;
-          }
-          else {
+          } else {
             text += '\n' + item.str;
           }
           lastY = item.transform[5];
@@ -468,7 +524,7 @@ async function extractPDFContent(PDFData: Buffer): Promise<{ text: string; cover
 
   const { text } = await pdf(PDFData, {
     pagerender: renderPage,
-  })
+  });
 
   const convert = fromBuffer(PDFData, {
     width: 2550,
@@ -476,7 +532,7 @@ async function extractPDFContent(PDFData: Buffer): Promise<{ text: string; cover
     density: 330,
   });
 
-  const { base64 } = await convert(1, { responseType: "base64" });
+  const { base64 } = await convert(1, { responseType: 'base64' });
   const coverData = Buffer.from(base64!, 'base64');
 
   return { text, coverData, ratio: ratio === undefined ? 0 : ratio };
@@ -497,7 +553,7 @@ async function uploadToSupabase(
   groupId: string,
   PDFData: Buffer,
   coverData: Buffer,
-  supabaseClient: SupabaseClient
+  supabaseClient: SupabaseClient,
 ): Promise<{ pdfUrl: string; coverUrl: string } | null> {
   const randomUUID = uuidv4();
   const pdfPath = `${groupId}/${item.data.parentItem}/${item.key}/${randomUUID}.pdf`;
@@ -506,24 +562,36 @@ async function uploadToSupabase(
   const uploadResult = await retryOperation(() =>
     supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).upload(pdfPath, PDFData, {
       upsert: true,
-      contentType: "application/pdf",
-    })
+      contentType: 'application/pdf',
+    }),
   );
 
   if (!uploadResult || uploadResult.error) {
-    console.log(`• ERROR [${item.data.parentItem} / ${item.key}] Failed to upload to Supabase (${JSON.stringify(uploadResult, null, 2) })`);
+    console.log(
+      `• ERROR [${item.data.parentItem} / ${item.key}] Failed to upload to Supabase (${JSON.stringify(
+        uploadResult,
+        null,
+        2,
+      )})`,
+    );
     return null;
   }
 
   const uploadCoverResult = await retryOperation(() =>
     supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).upload(coverPath, coverData, {
       upsert: true,
-      contentType: "image/png",
-    })
+      contentType: 'image/png',
+    }),
   );
 
   if (!uploadCoverResult || uploadCoverResult.error) {
-    console.log(`• ERROR [${item.data.parentItem} / ${item.key}] Failed to upload cover to Supabase (${JSON.stringify(uploadCoverResult, null, 2)})`);
+    console.log(
+      `• ERROR [${item.data.parentItem} / ${item.key}] Failed to upload cover to Supabase (${JSON.stringify(
+        uploadCoverResult,
+        null,
+        2,
+      )})`,
+    );
     return null;
   }
 
@@ -532,7 +600,7 @@ async function uploadToSupabase(
 
   return {
     pdfUrl: publicUrl.data.publicUrl,
-    coverUrl: publicCoverUrl.data.publicUrl
+    coverUrl: publicCoverUrl.data.publicUrl,
   };
 }
 
@@ -545,10 +613,14 @@ async function uploadToSupabase(
  * @param {any[]} items - Existing database items
  * @param {SupabaseClient} supabaseClient - The Supabase client instance
  */
-async function processFile(item: ZoteroItem, itemObj: ItemTableWrite, groupId: string, zoteroLib: Zotero, items: any[], supabaseClient: SupabaseClient) {
-  // if (item.key != "C8LXSEUU")
-  //   return;
-
+async function processFile(
+  item: ZoteroItem,
+  itemObj: ItemTableWrite,
+  groupId: string,
+  zoteroLib: Zotero,
+  items: any[],
+  supabaseClient: SupabaseClient,
+) {
   const dbItem = items.find((i) => i.key == item.key);
 
   if (!(await checkExistingFile(item, dbItem, itemObj, groupId, supabaseClient))) {
@@ -563,9 +635,9 @@ async function processFile(item: ZoteroItem, itemObj: ItemTableWrite, groupId: s
   const filePath = `temp/${item.key}.pdf`;
   const PDFData = fs.readFileSync(filePath);
   const { text, coverData, ratio } = await extractPDFContent(PDFData);
-  
+
   fs.unlinkSync(filePath);
-  
+
   if (ratio == 0) {
     console.log(`• ERROR [${item.data.parentItem} / ${item.key}] Failed to extract image dimensions`);
     return;
@@ -579,6 +651,108 @@ async function processFile(item: ZoteroItem, itemObj: ItemTableWrite, groupId: s
   itemObj.PDFCoverPageImage = cleanString(urls.coverUrl);
 }
 
+function createCollection(collection: any) {
+  const obj = {} as CollectionTableWrite;
+  obj.key = collection.key;
+  obj.version = collection.version;
+  obj.groupExternalId = Number(collection.library.id);
+  obj.numCollections = collection.meta.numCollections;
+  obj.numItems = collection.meta.numItems;
+  collectionColumns.forEach((column) => {
+    if (column == 'relations') {
+      if (collection.relations && Object.keys(collection.relations).length > 0) {
+        obj.relations = JSON.stringify(collection.data.relations);
+      }
+    } else if (column == 'parentCollection') {
+      if (typeof collection.data.parentCollection == 'string' && collection.data.parentCollection.length > 0) {
+        obj.parentCollection = collection.data.parentCollection;
+      }
+    } else if (column == 'deleted') {
+      obj.deleted = collection.data.deleted ? 1 : 0;
+    } else if (column in collection.data) {
+      obj[column] = collection.data[column];
+    }
+  });
+
+  return obj;
+}
+
+async function handleCollections(groupId: string, zoteroLib: Zotero, offlineItemsVersion: Record<string, number>) {
+  const lastVersion = offlineItemsVersion[groupId] || 0;
+
+  const originalGroupId = zoteroLib.config.group_id;
+  zoteroLib.config.group_id = groupId;
+  console.log(`lastVersion: ${lastVersion}`);
+  const fetchedCollections = await zoteroLib.all(`/collections?since=${lastVersion}&includeTrashed=1`);
+
+  fs.writeFileSync(`fetchedCollections-${groupId}.json`, JSON.stringify(fetchedCollections, null, 2));
+
+  zoteroLib.config.group_id = originalGroupId;
+
+  const collectionMap = new Map<string, CollectionTableWrite>();
+
+  for (const collection of fetchedCollections) {
+    const collectionObj = createCollection(collection);
+    collectionMap.set(collectionObj.key, collectionObj);
+  }
+
+  function topologicalSort() {
+    const sortedCollections: CollectionTableWrite[] = [];
+    const visited = new Set<string>();
+
+    function visit(collectionKey: string) {
+      if (visited.has(collectionKey)) return;
+      visited.add(collectionKey);
+
+      const collection = collectionMap.get(collectionKey);
+      if (collection && collection.parentCollection) {
+        visit(collection.parentCollection);
+      }
+
+      sortedCollections.push(collection!);
+    }
+
+    for (const collectionKey of collectionMap.keys()) {
+      visit(collectionKey);
+    }
+
+    return sortedCollections;
+  }
+
+  const sortedCollections = topologicalSort();
+
+  return sortedCollections;
+}
+
+function createItemToCollection(item: ZoteroItem, collection: CollectionTableWrite) {
+  const obj = {} as ItemToCollectionTableWrite;
+  obj.itemKey = item.key;
+  obj.collectionKey = collection.key;
+  return obj;
+}
+
+function processCollections(item: ZoteroItem, allItemToCollections: ItemToCollectionTableWrite[], collections: CollectionTableWrite[], allCollections: CollectionTableRead[], itemToCollectionsNotFound: Set<[string, string]>) {
+  const itemToCollections = [] as ItemToCollectionTableWrite[];
+
+  for (const collection of item.data.collections || []) {
+    const collectionObj = collections.find((c) => c.key == collection) || allCollections.find((c) => c.key == collection);
+    if (collectionObj) {
+      itemToCollections.push(createItemToCollection(item, collectionObj));
+    } else {
+      console.log(`• ERROR [${item.data.parentItem} / ${item.key}] Collection ${collection} not found`);
+    }
+  }
+
+  const matches = allItemToCollections.filter((i) => i.itemKey == item.key);
+  for (const match of matches) {
+    if (!item.data.collections?.includes(match.collectionKey)) {
+      itemToCollectionsNotFound.add([match.itemKey, match.collectionKey]);
+    }
+  }
+
+  return itemToCollections
+}
+
 /**
  * Saves Zotero items to the database.
  *
@@ -589,22 +763,31 @@ async function processFile(item: ZoteroItem, itemObj: ItemTableWrite, groupId: s
  */
 export async function saveZoteroItems(
   allFetchedItems: ZoteroItem[][],
-  lastModifiedVersion,
+  lastModifiedVersion: Record<string, number>,
   groupId: string,
   zoteroLib: Zotero,
   config: ZoteroTypes.ISyncToLocalDBArgs,
+  offlineItemsVersion: Record<string, number> | null
 ): Promise<void> {
   const supabaseClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE!);
 
   const items = [] as ItemTableWrite[];
-  const collections = [] as CollectionTableWrite[];
   const languages = [] as LanguageTableWrite[];
   const tags = [] as TagTableWrite[];
+  let collections = [] as CollectionTableWrite[];
 
   const itemToCollections = [] as ItemToCollectionTableWrite[];
   const itemToTags = [] as ItemToTagTableWrite[];
 
-  const allItems = await db.query.item.findMany();
+  const itemToCollectionsNotFound = new Set<[string, string]>();
+  
+  const allItems = await db.query.item.findMany()
+  const allCollections = await db.query.collection.findMany()
+  const allItemToCollections = await db.query.itemToCollection.findMany();
+
+  if (offlineItemsVersion) {
+    collections = await handleCollections(groupId, zoteroLib, offlineItemsVersion);
+  }
 
   fs.writeFileSync('lastModifiedVersion.json', JSON.stringify(lastModifiedVersion, null, 2));
   fs.writeFileSync('allFetchedItems.json', JSON.stringify(allFetchedItems, null, 2));
@@ -620,6 +803,8 @@ export async function saveZoteroItems(
       if (matchItemType(item)) {
         const itemObj = createItem(item);
         items.push(itemObj);
+
+        itemToCollections.push(...processCollections(item, allItemToCollections, collections, allCollections as CollectionTableRead[], itemToCollectionsNotFound));
 
         if (itemChecks(item)) {
           uploadPromises.push(processFile(item, itemObj, groupId, zoteroLib, allItems, supabaseClient));
@@ -637,15 +822,11 @@ export async function saveZoteroItems(
 
   await Promise.all(uploadPromises);
 
-  if (languages.length > 0)
-    await db
-      .insert(language)
-      .values(languages)
-      .onConflictDoNothing()
+  if (languages.length > 0) await db.insert(language).values(languages).onConflictDoNothing();
 
   if (items.length > 0) {
     console.log(`Adding ${items.length} items`);
-    items.sort((a, b) => (a.parentItemKey ? 1 : -1) - (b.parentItemKey ? 1 : -1));
+    items.sort((a, b) => (a.parentItem ? 1 : -1) - (b.parentItem ? 1 : -1));
 
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
       const batch = items.slice(i, i + BATCH_SIZE);
@@ -675,10 +856,20 @@ export async function saveZoteroItems(
     await db
       .insert(itemToCollection)
       .values(itemToCollections)
-      .onConflictDoUpdate({
-        target: [itemToCollection.itemKey, itemToCollection.collectionKey],
-        set: onConflictDoUpdateExcept(itemToCollection),
-      });
+      .onConflictDoNothing();
+  }
+
+  if (itemToCollectionsNotFound.size > 0) {
+    const itemToCollectionArray = Array.from(itemToCollectionsNotFound);
+    console.log(`Deleting ${itemToCollectionArray.length} itemToCollections`);
+    await db
+      .delete(itemToCollection)
+      .where(
+        and(
+          inArray(itemToCollection.itemKey, itemToCollectionArray.map(([itemKey]) => itemKey)),
+          inArray(itemToCollection.collectionKey, itemToCollectionArray.map(([, collectionKey]) => collectionKey))
+        )
+      );
   }
 
   if (tags.length > 0) {

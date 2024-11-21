@@ -3665,7 +3665,7 @@ const syncToLocalDB = async (args: ZoteroTypes.ISyncToLocalDBArgs, zoteroLib: an
       itemsLastModifiedVersion[group.group] = lastModifiedVersion;
 
 
-      await saveZoteroItems(groupItems, itemsLastModifiedVersion, group.group, zoteroLib, args);
+      await saveZoteroItems(groupItems, itemsLastModifiedVersion, group.group, zoteroLib, args, offlineItemsVersion);
       // Saving logic here...
       console.log('group saved into db ', group.group);
 
