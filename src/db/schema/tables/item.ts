@@ -130,9 +130,8 @@ export const item = pgTable('item', {
 
   languageName: varchar('languageName').references(() => language.name),
   groupExternalId: integer('groupExternalId').references(() => group.externalId),
-  parentItemKey: varchar('parentItemKey').references(() => item.key),
+  parentItem: varchar('parentItem').references(() => item.key),
 
-  collections: varchar().array(),
   tags: varchar().array(),
   
   relations: json(),

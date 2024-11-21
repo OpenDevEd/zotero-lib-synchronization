@@ -3,6 +3,7 @@ import { item } from "../tables/item";
 import { language } from "../tables/language";
 import { itemToTag } from "../tables/itemToTag";
 import { group } from "../tables/group";
+import { itemToCollection } from "../tables/itemToCollection";
 
 export const itemRelations = relations(item, ({ many, one }) => ({
     itemTags: many(itemToTag),
@@ -14,4 +15,5 @@ export const itemRelations = relations(item, ({ many, one }) => ({
         fields: [item.groupExternalId],
         references: [group.externalId]
     }),
+    collections: many(itemToCollection),
 }));
