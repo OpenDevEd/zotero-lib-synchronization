@@ -651,7 +651,12 @@ async function processFile(
   itemObj.PDFCoverPageImage = cleanString(urls.coverUrl);
 }
 
-function createCollection(collection: any) {
+/**
+ * Creates a collection object from a Zotero collection
+ * @param {any} collection - The Zotero collection to create from
+ * @returns {CollectionTableWrite} The created collection object
+ */
+function createCollection(collection: any): CollectionTableWrite {
   const obj = {} as CollectionTableWrite;
   obj.key = collection.key;
   obj.version = collection.version;
@@ -677,7 +682,18 @@ function createCollection(collection: any) {
   return obj;
 }
 
-async function handleCollections(groupId: string, zoteroLib: Zotero, offlineItemsVersion: Record<string, number>) {
+/**
+ * Handles fetching and processing collections from Zotero
+ * @param {string} groupId - The group ID to fetch collections for
+ * @param {Zotero} zoteroLib - The Zotero library instance
+ * @param {Record<string, number>} offlineItemsVersion - The offline items version map
+ * @returns {Promise<CollectionTableWrite[]>} A promise that resolves to an array of sorted collections
+ */
+async function handleCollections(
+  groupId: string,
+  zoteroLib: Zotero,
+  offlineItemsVersion: Record<string, number>
+): Promise<CollectionTableWrite[]> {
   const lastVersion = offlineItemsVersion[groupId] || 0;
 
   const originalGroupId = zoteroLib.config.group_id;
@@ -724,14 +740,35 @@ async function handleCollections(groupId: string, zoteroLib: Zotero, offlineItem
   return sortedCollections;
 }
 
-function createItemToCollection(item: ZoteroItem, collection: CollectionTableWrite) {
+/**
+ * Creates an item-to-collection mapping object
+ * @param {ZoteroItem} item - The Zotero item
+ * @param {CollectionTableWrite} collection - The collection to map the item to
+ * @returns {ItemToCollectionTableWrite} The created item-to-collection mapping object
+ */
+function createItemToCollection(item: ZoteroItem, collection: CollectionTableWrite): ItemToCollectionTableWrite {
   const obj = {} as ItemToCollectionTableWrite;
   obj.itemKey = item.key;
   obj.collectionKey = collection.key;
   return obj;
 }
 
-function processCollections(item: ZoteroItem, allItemToCollections: ItemToCollectionTableWrite[], collections: CollectionTableWrite[], allCollections: CollectionTableRead[], itemToCollectionsNotFound: Set<[string, string]>) {
+/**
+ * Processes collections for a given item, updating item-to-collection mappings
+ * @param {ZoteroItem} item - The Zotero item
+ * @param {ItemToCollectionTableWrite[]} allItemToCollections - All existing item-to-collection mappings
+ * @param {CollectionTableWrite[]} collections - Collections to process
+ * @param {CollectionTableRead[]} allCollections - All collections from the database
+ * @param {Set<[string, string]>} itemToCollectionsNotFound - Set to track missing item-to-collection mappings
+ * @returns {ItemToCollectionTableWrite[]} An array of item-to-collection mappings for the item
+ */
+function processCollections(
+  item: ZoteroItem,
+  allItemToCollections: ItemToCollectionTableWrite[],
+  collections: CollectionTableWrite[],
+  allCollections: CollectionTableRead[],
+  itemToCollectionsNotFound: Set<[string, string]>
+): ItemToCollectionTableWrite[] {
   const itemToCollections = [] as ItemToCollectionTableWrite[];
 
   for (const collection of item.data.collections || []) {
