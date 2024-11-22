@@ -11,7 +11,7 @@ export const collection = pgTable('collection', {
   name: varchar('name'),
   deleted: integer('deleted').default(0),
   
-  parentCollection: varchar().references(() => collection.key),
+  parentCollection: varchar().references((): any => collection.key),
   groupExternalId: integer('groupExternalId').references(() => group.externalId),
 
   relations: json(),
