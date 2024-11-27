@@ -1,4 +1,4 @@
-import { integer, pgTable, uuid, varchar, timestamp, json } from 'drizzle-orm/pg-core';
+import { integer, pgTable, uuid, varchar, timestamp, jsonb } from 'drizzle-orm/pg-core';
 import { group } from './group';
 
 export const collection = pgTable('collection', {
@@ -14,7 +14,7 @@ export const collection = pgTable('collection', {
   parentCollection: varchar().references((): any => collection.key),
   groupExternalId: integer('groupExternalId').references(() => group.externalId),
 
-  relations: json(),
+  relations: jsonb(),
 
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),

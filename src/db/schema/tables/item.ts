@@ -1,4 +1,4 @@
-import { integer, pgTable, varchar, uuid, timestamp, json } from 'drizzle-orm/pg-core';
+import { integer, pgTable, varchar, uuid, timestamp, jsonb } from 'drizzle-orm/pg-core';
 import { itemType } from '../enums/itemType';
 import { creatorType } from '../enums/creatorType';
 import { group } from './group';
@@ -8,6 +8,12 @@ export type CreatorType = {
   [key in typeof creatorType.enumValues[number]]?: string[];
 };
 
+export type Creator = {
+  creatorType: string;
+  firstName: string;
+  lastName: string;
+};
+
 export const item = pgTable('item', {
   id: uuid().primaryKey().defaultRandom(),
   itemType: itemType().notNull().default('Artwork'),
@@ -15,6 +21,9 @@ export const item = pgTable('item', {
   key: varchar('key', { length: 255 }).notNull().unique(),
   title: varchar(),
   abstractNote: varchar(),
+
+  creators: jsonb().$type<CreatorType>().array(),
+
   artworkMedium: varchar(),
   artworkSize: varchar(),
   date: varchar(),
@@ -135,7 +144,7 @@ export const item = pgTable('item', {
   tags: varchar().array(),
   collections: varchar().array(),
   
-  relations: json(),
+  relations: jsonb(),
 
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
