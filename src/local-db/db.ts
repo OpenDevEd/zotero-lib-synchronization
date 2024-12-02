@@ -409,9 +409,9 @@ function itemChecks(item: ZoteroItem): boolean {
   if (!item.data.parentItem || item.data.parentItem == '') {
     return false;
   }
-  // if (!item.data.tags || !item.data.tags.find((tag) => tag.tag == "_publish")) {
-  //   return false;
-  // }
+  if (!item.data.tags || !item.data.tags.find((tag) => tag.tag == "_publish")) {
+    return false;
+  }
   if (!item.data.contentType || item.data.contentType != 'application/pdf') {
     return false;
   }
