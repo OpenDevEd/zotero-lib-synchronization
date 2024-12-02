@@ -9,7 +9,7 @@ export const group = pgTable('group', {
   name: varchar('name', { length: 255 }).notNull(),
   version: integer('version').notNull().default(0),
   type: varchar('type', { length: 255 }).notNull(),
-  description: varchar('description', { length: 255 }),
+  description: varchar('description'),
   url: varchar('url', { length: 255 }),
   numItems: integer('numItems').default(0),
   itemsVersion: integer('itemsVersion').default(0),
