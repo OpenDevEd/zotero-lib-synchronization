@@ -4,14 +4,8 @@ import { creatorType } from '../enums/creatorType';
 import { group } from './group';
 import { language } from './language';
 
-export type CreatorType = {
+type CreatorType = {
   [key in typeof creatorType.enumValues[number]]?: string[];
-};
-
-export type Creator = {
-  creatorType: string;
-  firstName: string;
-  lastName: string;
 };
 
 export const item = pgTable('item', {
@@ -129,11 +123,28 @@ export const item = pgTable('item', {
   md5: varchar(),
   mtime: varchar(),
   charset: varchar(),
+
+  // identifier: varchar(),
+  // type: varchar(),
+  // repository: varchar(),
+  // repositoryLocation: varchar(),
+  // format: varchar(),
+  // citationKey: varchar(),
+  // archiveID: varchar(),
+  // organization: varchar(),
+  // number: varchar(),
+  // status: varchar(),
+
+  citation: varchar(),
+
+
   dateAdded: timestamp('dateAdded'),
   dateModified: timestamp('dateModified'),
 
   fullTextPDF: varchar(),
   PDFCoverPageImage: varchar(),
+  PDFCoverPageWidth: integer(),
+  PDFCoverPageHeight: integer(),
 
   deleted: integer('deleted').default(0),
 

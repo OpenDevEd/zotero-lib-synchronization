@@ -2,7 +2,7 @@ import * as fs from 'fs';
 
 import { Item } from '../types/item';
 import { db } from '../db/index';
-import { and, eq, getTableColumns, inArray, InferInsertModel, InferSelectModel, sql } from 'drizzle-orm';
+import { eq, getTableColumns, inArray, InferInsertModel, InferSelectModel, sql } from 'drizzle-orm';
 import { group } from '../db/schema/tables/group';
 import { item } from '../db/schema/tables/item';
 import { collection } from '../db/schema/tables/collection';
@@ -10,6 +10,7 @@ import { itemToCollection } from '../db/schema/tables/itemToCollection';
 import { columns } from '../db/schema/views/columns';
 import { tag } from '../db/schema/tables/tag';
 import { itemToTag } from '../db/schema/tables/itemToTag';
+import { status as statusTable } from '../db/schema/tables/status';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { language } from '../db/schema/tables/language';
 import { ZoteroTypes } from './../zotero-interface';
@@ -17,11 +18,17 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import pdf from 'pdf-parse';
 import { fromBuffer } from 'pdf2pic'; // requires graphicsmagick and ghostscript
 import { v4 as uuidv4 } from 'uuid';
+import { BibTeXExporter, mappingTable } from '../utils/formatAsBibTeX';
+import { Cite } from '@citation-js/core';
+import '@citation-js/plugin-bibtex';
+import '@citation-js/plugin-csl';
+import '@citation-js/plugin-ris';
 
 const BATCH_SIZE = 500;
 const RETRY_ATTEMPTS = 3;
 const RETRY_DELAY = 3000;
 const PROCESS_BATCH_SIZE = 20;
+const DELETE_BATCH_SIZE = 100;
 
 export type GroupTableWrite = InferInsertModel<typeof group>;
 export type ItemTableWrite = InferInsertModel<typeof item>;
@@ -30,6 +37,7 @@ export type ItemToCollectionTableWrite = InferInsertModel<typeof itemToCollectio
 export type TagTableWrite = InferInsertModel<typeof tag>;
 export type ItemToTagTableWrite = InferInsertModel<typeof itemToTag>;
 export type LanguageTableWrite = InferInsertModel<typeof language>;
+export type StatusTableWrite = InferInsertModel<typeof statusTable>;
 
 export type GroupTableRead = InferSelectModel<typeof group>;
 export type ItemTableRead = InferSelectModel<typeof item>;
@@ -38,7 +46,7 @@ export type ItemToCollectionTableRead = InferSelectModel<typeof itemToCollection
 export type TagTableRead = InferSelectModel<typeof tag>;
 export type ItemToTagTableRead = InferSelectModel<typeof itemToTag>;
 export type LanguageTableRead = InferSelectModel<typeof language>;
-
+export type StatusTableRead = InferSelectModel<typeof statusTable>;
 type Zotero = any;
 
 /**
@@ -251,8 +259,6 @@ function createGroup(group: ZoteroGroup): GroupTableWrite {
  * @returns {Promise<void>} - A promise that resolves when the group data is saved.
  */
 export async function saveGroup(groupData: any): Promise<void> {
-  fs.writeFileSync('groupData.json', JSON.stringify(groupData, null, 2));
-
   const groupTable = groupData.map(createGroup);
 
   await db
@@ -283,7 +289,7 @@ function matchItemType(item: ZoteroItem): boolean {
  * @param {ZoteroItem} item - The Zotero item to create from
  * @returns {ItemTableRead} The created item object
  */
-function createItem(item: ZoteroItem): ItemTableRead {
+async function createItem(item: ZoteroItem, allFetchedItems: ZoteroItem[][]): Promise<ItemTableRead> {
   const obj = {} as ItemTableWrite;
   obj.key = item.key;
   obj.version = item.version;
@@ -294,7 +300,7 @@ function createItem(item: ZoteroItem): ItemTableRead {
         obj.relations = JSON.stringify(item.data.relations);
       }
     } else if (column === 'tags') {
-      obj.tags = item.data.tags.map((tag) => tag.tag);
+      obj.tags = item.data.tags ? item.data.tags.map((tag) => tag.tag) : [];
     } else if (column === 'dateAdded' || column === 'dateModified') {
       obj[column] = new Date(item.data[column]);
     } else if (column == 'parentItem') {
@@ -305,6 +311,69 @@ function createItem(item: ZoteroItem): ItemTableRead {
       obj[column] = item.data[column];
     }
   });
+
+  let bibtex;
+  let bibtexString;
+  let citation;
+  let citationString;
+
+  if (
+    !(item.data.itemType == 'Attachment' || item.data.itemType == 'Note' || item.data.deleted || item.data.parentItem)
+  ) {
+    try {
+      // create a folder named `{item.key}` in `citationtest`
+      // fs.mkdirSync(`citationtest/${item.key}`, { recursive: true });
+
+      // write the item to a file named `{item.key}.json` in the folder
+      // fs.writeFileSync(`citationtest/${item.key}/${item.key}.json`, JSON.stringify(item, null, 2));
+
+      bibtex = new BibTeXExporter(
+        {
+          ...item.data,
+          attachments: allFetchedItems
+            .flat()
+            .filter((i) => i.data.parentItem == item.key)
+            .map((i) => ({
+              title: i.data.title,
+              localPath: i.data.url,
+              mimeType: i.data.contentType,
+            })),
+        },
+        {
+          exportFileData: true,
+          exportNotes: true,
+        },
+      );
+
+      bibtexString = bibtex.format();
+
+      // write the bibtex to a file named `{item.key}.bib` in the folder
+      // fs.writeFileSync(`citationtest/${item.key}/${item.key}.bib`, bibtexString);
+
+      citationString;
+      try {
+        citation = await Cite.async(bibtexString);
+        citationString = citation.format('bibliography', {
+          format: 'html',
+          template: 'apa',
+          lang: 'en-US',
+        });
+      } catch (e) {
+        console.log('Error on ', item.key);
+        console.log(e);
+      }
+      // write the citation to a file named `{item.key}.html` in the folder
+      // fs.writeFileSync(`citationtest/${item.key}/${item.key}.html`, citationString);
+
+      obj.citation = citationString;
+    } catch (e) {
+      fs.appendFileSync(
+        'citationErrors.txt',
+        `${item.key} - ${e}\n\nbitex: ${bibtexString}\n\ncitation: ${citationString}`,
+      );
+    }
+  }
+
   if (item.data.language && item.data.language.length > 0) obj.languageName = item.data.language;
   return obj as ItemTableRead;
 }
@@ -409,7 +478,7 @@ function itemChecks(item: ZoteroItem): boolean {
   if (!item.data.parentItem || item.data.parentItem == '') {
     return false;
   }
-  if (!item.data.tags || !item.data.tags.find((tag) => tag.tag == "_publish")) {
+  if (!item.data.tags || !item.data.tags.find((tag) => tag.tag == '_publish' || tag.tag == 'publishPDF')) {
     return false;
   }
   if (!item.data.contentType || item.data.contentType != 'application/pdf') {
@@ -431,7 +500,9 @@ function cleanString(input: string): string {
   let output = '';
 
   for (let i = 0; i < input.length; i++) {
-    if (input.charCodeAt(i) < 127 && input.charCodeAt(i) >= 32) {
+    if (mappingTable[input.charAt(i)]) {
+      output += mappingTable[input.charAt(i)];
+    } else if (input.charCodeAt(i) < 127 && input.charCodeAt(i) >= 1) {
       output += input.charAt(i);
     }
   }
@@ -490,11 +561,15 @@ async function checkExistingFile(
  * @param {Buffer} PDFData - Buffer of the PDF file
  * @returns {Promise<{text: string; coverData: Buffer, ratio: number}>} Extracted text and cover image data
  */
-async function extractPDFContent(PDFData: Buffer): Promise<{ text: string; coverData: Buffer; ratio: number }> {
+async function extractPDFContent(
+  PDFData: Buffer,
+  itemKey: string,
+): Promise<{ text: string; coverData: Buffer; ratio: number }> {
   let ratio: number | undefined = undefined;
 
   function renderPage(pageData: any) {
     const viewPort = pageData.getViewport(1);
+    const pageNumber = pageData.pageNumber;
 
     const render_options = {
       normalizeWhitespace: false,
@@ -518,12 +593,15 @@ async function extractPDFContent(PDFData: Buffer): Promise<{ text: string; cover
           }
           lastY = item.transform[5];
         }
-        return text;
+        return `\n\n**|| PAGE ${pageNumber} ||**\n\n` + text;
       });
   }
 
   const { text } = await pdf(PDFData, {
     pagerender: renderPage,
+  }).catch((e) => {
+    console.log(`${itemKey} - ${e}`);
+    return { text: '' };
   });
 
   const convert = fromBuffer(PDFData, {
@@ -633,8 +711,14 @@ async function processFile(
   }
 
   const filePath = `temp/${item.key}.pdf`;
-  const PDFData = fs.readFileSync(filePath);
-  const { text, coverData, ratio } = await extractPDFContent(PDFData);
+  let PDFData: Buffer;
+  try {
+    PDFData = fs.readFileSync(filePath);
+  } catch (e) {
+    console.log(`${item.key} - ${e}`);
+    return;
+  }
+  const { text, coverData, ratio } = await extractPDFContent(PDFData, item.key);
 
   fs.unlinkSync(filePath);
 
@@ -649,6 +733,8 @@ async function processFile(
   itemObj.url = cleanString(urls.pdfUrl);
   itemObj.fullTextPDF = cleanString(text);
   itemObj.PDFCoverPageImage = cleanString(urls.coverUrl);
+  itemObj.PDFCoverPageWidth = 2550;
+  itemObj.PDFCoverPageHeight = Math.round(2550 / ratio);
 }
 
 /**
@@ -692,7 +778,7 @@ function createCollection(collection: any): CollectionTableWrite {
 async function handleCollections(
   groupId: string,
   zoteroLib: Zotero,
-  offlineItemsVersion: Record<string, number>
+  offlineItemsVersion: Record<string, number>,
 ): Promise<CollectionTableWrite[]> {
   const lastVersion = offlineItemsVersion[groupId] || 0;
 
@@ -701,7 +787,7 @@ async function handleCollections(
   console.log(`lastVersion: ${lastVersion}`);
   const fetchedCollections = await zoteroLib.all(`/collections?since=${lastVersion}&includeTrashed=1`);
 
-  fs.writeFileSync(`fetchedCollections-${groupId}.json`, JSON.stringify(fetchedCollections, null, 2));
+  // fs.writeFileSync(`fetchedCollections-${groupId}.json`, JSON.stringify(fetchedCollections, null, 2));
 
   zoteroLib.config.group_id = originalGroupId;
 
@@ -721,11 +807,16 @@ async function handleCollections(
       visited.add(collectionKey);
 
       const collection = collectionMap.get(collectionKey);
-      if (collection && collection.parentCollection) {
+      if (!collection) {
+        console.log(`• ERROR [${collectionKey}] Collection not found`);
+        return;
+      }
+
+      if (collection.parentCollection) {
         visit(collection.parentCollection);
       }
 
-      sortedCollections.push(collection!);
+      sortedCollections.push(collection);
     }
 
     for (const collectionKey of collectionMap.keys()) {
@@ -740,54 +831,135 @@ async function handleCollections(
   return sortedCollections;
 }
 
-/**
- * Creates an item-to-collection mapping object
- * @param {ZoteroItem} item - The Zotero item
- * @param {CollectionTableWrite} collection - The collection to map the item to
- * @returns {ItemToCollectionTableWrite} The created item-to-collection mapping object
- */
-function createItemToCollection(item: ZoteroItem, collection: CollectionTableWrite): ItemToCollectionTableWrite {
-  const obj = {} as ItemToCollectionTableWrite;
-  obj.itemKey = item.key;
-  obj.collectionKey = collection.key;
-  return obj;
+export async function createStatus(supabaseClient: SupabaseClient, groupId: string) {
+  const STATIC_STATUS_UUID = '00000000-0000-0000-0000-000000000000';
+
+  const allItems = await db.query.item.findMany();
+
+  let allRIS = ``;
+  let allBibTeX = ``;
+
+  const promises: Promise<void>[] = [];
+  const errors: string[] = [];
+
+  let totalRecords = 0;
+
+  for (const item of allItems) {
+    promises.push(
+      new Promise<void>(async (resolve, reject) => {
+        try {
+          if (item.itemType == 'Attachment' || item.itemType == 'Note' || item.deleted) return resolve();
+
+          const bibtex = new BibTeXExporter(item);
+          const bibtexText = bibtex.format();
+          allBibTeX += bibtexText + '\n';
+
+          const cite = await Cite.async(bibtexText);
+          const ris = cite.format('ris');
+          allRIS += ris + '\n';
+
+          totalRecords++;
+          resolve();
+        } catch (e: any) {
+          errors.push(`${item.key} - ${e.message}`);
+          reject(e);
+        }
+      }),
+    );
+  }
+
+  await Promise.allSettled(promises);
+
+  await supabaseClient.storage
+    .from(process.env.SUPABASE_STORAGE_BUCKET!)
+    .upload(`${groupId}/allRIS.ris`, Buffer.from(allRIS), {
+      upsert: true,
+      contentType: 'application/x-research-info-systems',
+    });
+
+  await supabaseClient.storage
+    .from(process.env.SUPABASE_STORAGE_BUCKET!)
+    .upload(`${groupId}/allBibTeX.bib`, Buffer.from(allBibTeX), {
+      upsert: true,
+      contentType: 'application/x-bibtex',
+    });
+
+  const risUrl = supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).getPublicUrl(`${groupId}/allRIS.ris`)
+    .data.publicUrl;
+
+  const bibtexUrl = supabaseClient.storage
+    .from(process.env.SUPABASE_STORAGE_BUCKET!)
+    .getPublicUrl(`${groupId}/allBibTeX.bib`).data.publicUrl;
+
+  const fieldsToInsert: StatusTableWrite = {
+    totalItems: allItems.length,
+    totalRecords,
+    databaseUpdatedAt: new Date(),
+    updatedAt: new Date(),
+    allRISURL: risUrl,
+    allBibTeXURL: bibtexUrl,
+  };
+
+  const statusObj = await db
+    .insert(statusTable)
+    .values({
+      id: STATIC_STATUS_UUID,
+      ...fieldsToInsert,
+    })
+    .onConflictDoUpdate({
+      target: [statusTable.id],
+      set: fieldsToInsert,
+    })
+    .returning();
+
+  return statusObj;
 }
 
 /**
- * Processes collections for a given item, updating item-to-collection mappings
- * @param {ZoteroItem} item - The Zotero item
- * @param {ItemToCollectionTableWrite[]} allItemToCollections - All existing item-to-collection mappings
- * @param {CollectionTableWrite[]} collections - Collections to process
- * @param {CollectionTableRead[]} allCollections - All collections from the database
- * @param {Set<[string, string]>} itemToCollectionsNotFound - Set to track missing item-to-collection mappings
- * @returns {ItemToCollectionTableWrite[]} An array of item-to-collection mappings for the item
+ * Deletes files from Supabase storage in batches
+ * @param {SupabaseClient} supabaseClient - The Supabase client
+ * @param {string} groupId - The group ID whose files should be deleted
+ * @param {string} bucketName - The storage bucket name
+ * @returns {Promise<void>}
  */
-function processCollections(
-  item: ZoteroItem,
-  allItemToCollections: ItemToCollectionTableWrite[],
-  collections: CollectionTableWrite[],
-  allCollections: CollectionTableRead[],
-  itemToCollectionsNotFound: Set<[string, string]>
-): ItemToCollectionTableWrite[] {
-  const itemToCollections = [] as ItemToCollectionTableWrite[];
+async function deleteGroupFiles(supabaseClient: SupabaseClient, groupId: string, bucketName: string): Promise<void> {
+  try {
+    // List all files in the group folder
+    const { data: fileList, error: listError } = await supabaseClient.storage.from(bucketName).list(groupId, {
+      limit: 10000, // Adjust this limit if needed
+    });
 
-  for (const collection of item.data.collections || []) {
-    const collectionObj = collections.find((c) => c.key == collection) || allCollections.find((c) => c.key == collection);
-    if (collectionObj) {
-      itemToCollections.push(createItemToCollection(item, collectionObj));
-    } else {
-      console.log(`• ERROR [${item.data.parentItem} / ${item.key}] Collection ${collection} not found`);
+    if (listError) {
+      console.error(`Error listing files for group ${groupId}:`, listError);
+      return;
     }
-  }
 
-  const matches = allItemToCollections.filter((i) => i.itemKey == item.key);
-  for (const match of matches) {
-    if (!item.data.collections?.includes(match.collectionKey)) {
-      itemToCollectionsNotFound.add([match.itemKey, match.collectionKey]);
+    if (!fileList || fileList.length === 0) {
+      console.log(`No files found for group ${groupId}`);
+      return;
     }
-  }
 
-  return itemToCollections
+    // Process deletions in batches
+    for (let i = 0; i < fileList.length; i += DELETE_BATCH_SIZE) {
+      const batch = fileList.slice(i, i + DELETE_BATCH_SIZE);
+      const filesToDelete = batch.map((file) => `${groupId}/${file.name}`);
+
+      const { error: deleteError } = await supabaseClient.storage.from(bucketName).remove(filesToDelete);
+
+      if (deleteError) {
+        console.error(`Error deleting batch for group ${groupId}:`, deleteError);
+      } else {
+        console.log(`Deleted ${filesToDelete.length} files for group ${groupId}`);
+      }
+
+      // Add a small delay between batches to prevent rate limiting
+      if (i + DELETE_BATCH_SIZE < fileList.length) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+  } catch (error) {
+    console.error(`Unexpected error deleting files for group ${groupId}:`, error);
+  }
 }
 
 /**
@@ -804,30 +976,24 @@ export async function saveZoteroItems(
   groupId: string,
   zoteroLib: Zotero,
   config: ZoteroTypes.ISyncToLocalDBArgs,
-  offlineItemsVersion: Record<string, number> | null
+  offlineItemsVersion: Record<string, number> | null,
 ): Promise<void> {
   const supabaseClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE!);
 
+  await deleteGroupFiles(supabaseClient, groupId, process.env.SUPABASE_STORAGE_BUCKET!);
+
   const items = [] as ItemTableWrite[];
   const languages = [] as LanguageTableWrite[];
-  const tags = [] as TagTableWrite[];
   let collections = [] as CollectionTableWrite[];
 
-  const itemToCollections = [] as ItemToCollectionTableWrite[];
-  const itemToTags = [] as ItemToTagTableWrite[];
-
-  const itemToCollectionsNotFound = new Set<[string, string]>();
-  
-  const allItems = await db.query.item.findMany()
-  const allCollections = await db.query.collection.findMany()
-  const allItemToCollections = await db.query.itemToCollection.findMany();
+  const allItems = await db.query.item.findMany();
 
   if (offlineItemsVersion) {
     collections = await handleCollections(groupId, zoteroLib, offlineItemsVersion);
   }
 
-  fs.writeFileSync('lastModifiedVersion.json', JSON.stringify(lastModifiedVersion, null, 2));
-  fs.writeFileSync('allFetchedItems.json', JSON.stringify(allFetchedItems, null, 2));
+  // fs.writeFileSync('lastModifiedVersion.json', JSON.stringify(lastModifiedVersion, null, 2));
+  // fs.writeFileSync('allFetchedItems.json', JSON.stringify(allFetchedItems, null, 2));
 
   let uploadPromises: Promise<void>[] = [];
 
@@ -838,10 +1004,8 @@ export async function saveZoteroItems(
     }
     for (const item of chunk) {
       if (matchItemType(item)) {
-        const itemObj = createItem(item);
+        const itemObj = await createItem(item, allFetchedItems);
         items.push(itemObj);
-
-        itemToCollections.push(...processCollections(item, allItemToCollections, collections, allCollections as CollectionTableRead[], itemToCollectionsNotFound));
 
         if (itemChecks(item)) {
           uploadPromises.push(processFile(item, itemObj, groupId, zoteroLib, allItems, supabaseClient));
@@ -879,57 +1043,21 @@ export async function saveZoteroItems(
 
   if (collections.length > 0) {
     console.log(`Adding ${collections.length} collections`);
-    await db
-      .insert(collection)
-      .values(collections)
-      .onConflictDoUpdate({
-        target: [collection.key],
-        set: onConflictDoUpdateExcept(collection),
-      });
+    // fs.writeFileSync('collections.json', JSON.stringify(collections, null, 2));
+    try {
+      await db
+        .insert(collection)
+        .values(collections)
+        .onConflictDoUpdate({
+          target: [collection.key],
+          set: onConflictDoUpdateExcept(collection),
+        });
+    } catch (e) {
+      console.log(e);
+    }
   }
 
-  if (itemToCollections.length > 0) {
-    console.log(`Adding ${itemToCollections.length} itemToCollections`);
-    await db
-      .insert(itemToCollection)
-      .values(itemToCollections)
-      .onConflictDoNothing();
-  }
-
-  if (itemToCollectionsNotFound.size > 0) {
-    const itemToCollectionArray = Array.from(itemToCollectionsNotFound);
-    console.log(`Deleting ${itemToCollectionArray.length} itemToCollections`);
-    await db
-      .delete(itemToCollection)
-      .where(
-        and(
-          inArray(itemToCollection.itemKey, itemToCollectionArray.map(([itemKey]) => itemKey)),
-          inArray(itemToCollection.collectionKey, itemToCollectionArray.map(([, collectionKey]) => collectionKey))
-        )
-      );
-  }
-
-  if (tags.length > 0) {
-    console.log(`Adding ${tags.length} tags`);
-    await db
-      .insert(tag)
-      .values(tags)
-      .onConflictDoUpdate({
-        target: [tag.name],
-        set: onConflictDoUpdateExcept(tag, ['id', 'createdAt', 'name']),
-      });
-  }
-
-  if (itemToTags.length > 0) {
-    console.log(`Adding ${itemToTags.length} itemToTags`);
-    await db
-      .insert(itemToTag)
-      .values(itemToTags)
-      .onConflictDoUpdate({
-        target: [itemToTag.itemKey, itemToTag.tagName],
-        set: onConflictDoUpdateExcept(itemToTag),
-      });
-  }
+  await createStatus(supabaseClient, groupId);
 
   await Promise.all(
     Object.entries(lastModifiedVersion).map(async ([externalId, version]) => {
@@ -960,7 +1088,7 @@ export async function lookupItems(keys: { keys: string[] }): Promise<ItemTableRe
  * @returns A promise that resolves to an array of empty items.
  */
 export async function FindEmptyItemsFromDatabase(group_id: string): Promise<Item[]> {
-  fs.writeFileSync('group_id.json', JSON.stringify(group_id, null, 2));
+  // fs.writeFileSync('group_id.json', JSON.stringify(group_id, null, 2));
 
   return [];
 }

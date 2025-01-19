@@ -1,0 +1,1 @@
+ALTER TABLE "group" ALTER COLUMN "description" SET DATA TYPE varchar;

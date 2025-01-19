@@ -326,7 +326,7 @@ class Zotero {
           logger.info('Error in all: ' + error);
         });
       data = data.concat(chunk.body);
-      link = chunk.headers.link && LinkHeader.parse(chunk.headers.link).rel('next');
+      link = chunk?.headers?.link && LinkHeader.parse(chunk.headers.link).rel('next');
     }
     return data;
   }
@@ -3607,10 +3607,13 @@ const syncToLocalDB = async (args: ZoteroTypes.ISyncToLocalDBArgs, zoteroLib: an
   args.user_id = userID;
   const { groupid } = args;
 
-  const onlineGroups = await fetchGroups({ ...args });
+  const onlineGroupsZ = await fetchGroups({ ...args });
+  console.log('onlineGroupsZ', onlineGroupsZ);
+  const onlineGroups = { }
+  onlineGroups[zoteroLib.config.group_id] = 0
+  console.log('onlineGroups', onlineGroups);
   const offlineGroups = await getAllGroups();
 
-  console.log('onlineGroups', onlineGroups);
   console.log('offlineGroups', offlineGroups);
 
   const offlineItemsVersion = offlineGroups.reduce( (a: any, c: any) => ({ ...a, [c.externalId]: c.itemsVersion }), {});
