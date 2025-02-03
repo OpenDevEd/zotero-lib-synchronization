@@ -29,6 +29,7 @@ const RETRY_ATTEMPTS = 3;
 const RETRY_DELAY = 3000;
 const PROCESS_BATCH_SIZE = 20;
 const DELETE_BATCH_SIZE = 100;
+const STATIC_STATUS_UUID = '00000000-0000-0000-0000-000000000000';
 
 export type GroupTableWrite = InferInsertModel<typeof group>;
 export type ItemTableWrite = InferInsertModel<typeof item>;
@@ -832,7 +833,6 @@ async function handleCollections(
 }
 
 export async function createStatus(supabaseClient: SupabaseClient, groupId: string) {
-  const STATIC_STATUS_UUID = '00000000-0000-0000-0000-000000000000';
 
   const allItems = await db.query.item.findMany();
 
@@ -915,6 +915,10 @@ export async function createStatus(supabaseClient: SupabaseClient, groupId: stri
   return statusObj;
 }
 
+export async function updateLastSyncedAt() {
+  await db.update(statusTable).set({ databaseUpdatedAt: new Date() }).where(eq(statusTable.id, STATIC_STATUS_UUID));
+}
+
 /**
  * Deletes files from Supabase storage in batches
  * @param {SupabaseClient} supabaseClient - The Supabase client
@@ -980,7 +984,9 @@ export async function saveZoteroItems(
 ): Promise<void> {
   const supabaseClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE!);
 
-  await deleteGroupFiles(supabaseClient, groupId, process.env.SUPABASE_STORAGE_BUCKET!);
+  if (false) {
+    await deleteGroupFiles(supabaseClient, groupId, process.env.SUPABASE_STORAGE_BUCKET!);
+  }
 
   const items = [] as ItemTableWrite[];
   const languages = [] as LanguageTableWrite[];

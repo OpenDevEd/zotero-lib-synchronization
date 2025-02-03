@@ -1,41 +1,41 @@
 const zotero2bibtexTypeMap = {
-	"book":"book",
-	"bookSection":"incollection",
-	"journalArticle":"article",
-	"magazineArticle":"article",
-	"newspaperArticle":"article",
-	"thesis":"phdthesis",
-	"letter":"misc",
-	"manuscript":"unpublished",
-	"patent" :"patent",
-	"interview":"misc",
-	"film":"misc",
-	"artwork":"misc",
-	"webpage":"misc",
-	"conferencePaper":"inproceedings",
-	"report":"techreport"
+	Book: "book",
+	BookSection: "incollection",
+	JournalArticle: "article",
+	MagazineArticle: "article",
+	NewspaperArticle: "article",
+	Thesis: "phdthesis",
+	Letter: "misc",
+	Manuscript: "unpublished",
+	Patent: "patent",
+	Interview: "misc",
+	Film: "misc",
+	Artwork: "misc",
+	Webpage: "misc",
+	ConferencePaper: "inproceedings",
+	Report: "techreport",
 };
 
 const fieldMap = {
-	address:"place",
-	chapter:"section",
-	edition:"edition",
-	type:"type",
-	series:"series",
-	title:"title",
-	volume:"volume",
-	copyright:"rights",
-	isbn:"ISBN",
-	issn:"ISSN",
-	lccn:"callNumber",
-	location:"archiveLocation",
-	shorttitle:"shortTitle",
-	url:"url",
-	doi:"DOI",
-	abstract:"abstractNote",
-  	nationality: "country",
-  	language:"language",
-  	assignee:"assignee"
+	address: "place",
+	chapter: "section",
+	edition: "edition",
+	type: "type",
+	series: "series",
+	title: "title",
+	volume: "volume",
+	copyright: "rights",
+	isbn: "ISBN",
+	issn: "ISSN",
+	lccn: "callNumber",
+	location: "archiveLocation",
+	shorttitle: "shortTitle",
+	url: "url",
+	doi: "DOI",
+	abstract: "abstractNote",
+	nationality: "country",
+	language: "language",
+	assignee: "assignee",
 };
 
 const alwaysMap = {
@@ -1129,101 +1129,135 @@ export class BibTeXExporter {
     }
 
     format() {
-        if(this.item.itemType == "note" || this.item.itemType == "attachment") return null;
+		if (this.item.itemType == "Note" || this.item.itemType == "Attachment")
+			return null;
 
-        const type = zotero2bibtexTypeMap[this.item.itemType as keyof typeof zotero2bibtexTypeMap] || "misc";
+		const type =
+			zotero2bibtexTypeMap[
+				this.item.itemType as keyof typeof zotero2bibtexTypeMap
+			] || "misc";
 
-        this.writeLine("@"+type+"{"+this.item.key);
-    
-        for (const field in fieldMap) {
-            if (this.item[fieldMap[field as keyof typeof fieldMap]]) {
-                this.writeField(field, this.item[fieldMap[field as keyof typeof fieldMap]]);
-            }
-        }
+		this.writeLine("@" + type + "{" + this.item.key);
 
-        if(this.item.reportNumber || this.item.issue || this.item.seriesNumber || this.item.patentNumber) {
-			this.writeField("number", this.item.reportNumber || this.item.issue || this.item.seriesNumber|| this.item.patentNumber);
+		for (const field in fieldMap) {
+			if (this.item[fieldMap[field as keyof typeof fieldMap]]) {
+				this.writeField(
+					field,
+					this.item[fieldMap[field as keyof typeof fieldMap]]
+				);
+			}
 		}
 
-        if (this.item.accessDate){
-			const accessYMD = this.item.accessDate.replace(/\s*\d+:\d+:\d+/, "");
+		if (
+			this.item.reportNumber ||
+			this.item.issue ||
+			this.item.seriesNumber ||
+			this.item.patentNumber
+		) {
+			this.writeField(
+				"number",
+				this.item.reportNumber ||
+					this.item.issue ||
+					this.item.seriesNumber ||
+					this.item.patentNumber
+			);
+		}
+
+		if (this.item.accessDate) {
+			const accessYMD = this.item.accessDate.replace(
+				/\s*\d+:\d+:\d+/,
+				""
+			);
 			this.writeField("urldate", accessYMD);
 		}
 
-        if(this.item.publicationTitle) {
-			if(this.item.itemType == "bookSection" || this.item.itemType == "conferencePaper") {
+		if (this.item.publicationTitle) {
+			if (
+				this.item.itemType == "BookSection" ||
+				this.item.itemType == "ConferencePaper"
+			) {
 				this.writeField("booktitle", this.item.publicationTitle);
-			} else if(this.options.useJournalAbbreviation){
+			} else if (this.options.useJournalAbbreviation) {
 				this.writeField("journal", this.item.journalAbbreviation);
 			} else {
 				this.writeField("journal", this.item.publicationTitle);
 			}
 		}
 
-        if(this.item.publisher) {
-			if(this.item.itemType == "thesis") {
+		if (this.item.creators && this.item.creators.length) {
+			let author = "";
+			let editor = "";
+			let translator = "";
+			for (let i = 0; i < this.item.creators.length; i++) {
+				const creator = this.item.creators[i];
+				let creatorString = creator.lastName;
+
+				if (creatorString) {
+					if (creator.firstName) {
+						creatorString =
+							creator.lastName + ", " + creator.firstName;
+					}
+
+					creatorString = creatorString
+						.replace(/[|\<\>\~\^\\\{\}]/g, mapEscape)
+						.replace(/([^\s-\}\(\[]+[A-Z][^\s,]*)/g, "{$1}");
+
+					if (creator.fieldMode == true) {
+						creatorString = "{" + creatorString + "}";
+					}
+
+					if (
+						creator.creatorType == "editor" ||
+						creator.creatorType == "seriesEditor"
+					) {
+						editor += " and " + creatorString;
+					} else if (creator.creatorType == "translator") {
+						translator += " and " + creatorString;
+					} else {
+						author += " and " + creatorString;
+					}
+				} else if (creator.name) {
+					this.item.publisher = this.item.publisher ?? creator.name;
+				}
+			}
+
+			if (author) {
+				this.writeField("author", "{" + author + "}", true);
+			}
+			if (editor) {
+				this.writeField("editor", "{" + editor + "}", true);
+			}
+			if (translator) {
+				this.writeField("translator", "{" + translator + "}", true);
+			}
+		}
+
+		if (this.item.publisher) {
+			if (this.item.itemType == "Thesis") {
 				this.writeField("school", this.item.publisher);
-			} else if(this.item.itemType =="report") {
+			} else if (this.item.itemType == "Report") {
 				this.writeField("institution", this.item.publisher);
 			} else {
 				this.writeField("publisher", this.item.publisher);
 			}
 		}
 
-        if(this.item.creators && this.item.creators.length) {
-			// split creators into subcategories
-			let author = "";
-			let editor = "";
-			let translator = "";
-			for(let i = 0; i < this.item.creators.length; i++) {
-				const creator = this.item.creators[i];
-				let creatorString = creator.lastName ?? creator.name;
-
-				if (creator.firstName) {
-					creatorString = creator.lastName + ", " + creator.firstName;
+		if (this.item.date) {
+			const date = new Date(this.item.date);
+			if (!isNaN(date.getTime())) {
+				// Check if date is valid
+				// JavaScript months are 0-based, so we add 1 to match the months array
+				const month = date.getMonth();
+				if (typeof month === "number" && month >= 0 && month < 12) {
+					this.writeField("month", months[month], true);
 				}
-				
-				creatorString = creatorString.replace(/[|\<\>\~\^\\\{\}]/g, mapEscape).replace(/([^\s-\}\(\[]+[A-Z][^\s,]*)/g, "{$1}");
-																			
-				if (creator.fieldMode == true) { // fieldMode true, assume corporate author
-					creatorString = "{" + creatorString + "}";
-				}
-
-				if (creator.creatorType == "editor" || creator.creatorType == "seriesEditor") {
-					editor += " and "+creatorString;
-				} else if (creator.creatorType == "translator") {
-					translator += " and "+creatorString;
-				} else {
-					author += " and "+creatorString;
-				}
-			}
-			
-			if(author) {
-				this.writeField("author", "{" + author.substr(5) + "}", true);
-			}
-			if(editor) {
-				this.writeField("editor", "{" + editor.substr(5) + "}", true);
-			}
-			if(translator) {
-				this.writeField("translator",  "{" + translator.substr(5) + "}", true);
+				this.writeField("year", date.getFullYear().toString());
 			}
 		}
 
-        if(this.item.date) {
-            const date = new Date(this.item.date);
-            if(!isNaN(date.getTime())) { // Check if date is valid
-                // JavaScript months are 0-based, so we add 1 to match the months array
-                const month = date.getMonth();
-                if(typeof month === "number" && month >= 0 && month < 12) {
-                    this.writeField("month", months[month], true);
-                }
-                this.writeField("year", date.getFullYear().toString());
-            }
-        }
-
 		let doi = this.item.DOI;
 
-        if(this.item.extra) {
+		if (this.item.extra) {
 			if (!doi) {
 				const split = this.item.extra.split("\n");
 				for (const line of split) {
@@ -1238,106 +1272,115 @@ export class BibTeXExporter {
 			this.writeField("doi", doi);
 		}
 
-        if(this.item.tags && this.item.tags.length) {
+		if (this.item.tags && this.item.tags.length) {
 			this.writeField("keywords", this.item.tags.join(", "));
 		}
 
-        if(this.item.pages) {
-			this.writeField("pages", this.item.pages.replace("-","--"));
+		if (this.item.pages) {
+			this.writeField("pages", this.item.pages.replace("-", "--"));
 		}
 
-        if(this.item.itemType == "webpage") {
+		if (this.item.itemType == "Webpage") {
 			this.writeField("howpublished", this.item.url);
 		}
 
-        if (this.item.notes && this.options.exportNotes) {
-			for(let i = 0; i < this.item.notes.length; i++) {
+		if (this.item.notes && this.options.exportNotes) {
+			for (let i = 0; i < this.item.notes.length; i++) {
 				const note = this.item.notes[i];
 				this.writeField("annote", unescapeHTML(note["note"]));
 			}
 		}
 
-        if(this.item.attachments && this.options.exportFileData) {
+		if (this.item.attachments && this.options.exportFileData) {
 			let attachmentString = "";
-			
-			for(let i = 0; i < this.item.attachments.length; i++) {
+
+			for (let i = 0; i < this.item.attachments.length; i++) {
 				const attachment = this.item.attachments[i];
-				attachmentString += ";" + attachment.title + ":" + attachment.localPath + ":" + attachment.mimeType;
+				attachmentString +=
+					";" +
+					attachment.title +
+					":" +
+					attachment.localPath +
+					":" +
+					attachment.mimeType;
 			}
-			
-			if(attachmentString) {
+
+			if (attachmentString) {
 				this.writeField("file", attachmentString.substr(1));
 			}
 		}
 
-        // Handle address
-        if (this.item.address) {
-            this.writeField("address", this.item.address);
-        }
+		// Handle address
+		if (this.item.address) {
+			this.writeField("address", this.item.address);
+		}
 
-        // Handle booktitle (expanded handling)
-        if (this.item.bookTitle || this.item.publicationTitle) {
-            this.writeField("booktitle", this.item.bookTitle || this.item.publicationTitle);
-        }
+		// Handle booktitle (expanded handling)
+		if (this.item.bookTitle || this.item.publicationTitle) {
+			this.writeField(
+				"booktitle",
+				this.item.bookTitle || this.item.publicationTitle
+			);
+		}
 
-        // Handle chapter
-        if (this.item.chapter) {
-            this.writeField("chapter", this.item.chapter.toString());
-        }
+		// Handle chapter
+		if (this.item.chapter) {
+			this.writeField("chapter", this.item.chapter.toString());
+		}
 
-        // Handle crossref
-        if (this.item.crossref) {
-            this.writeField("crossref", this.item.crossref);
-        }
+		// Handle crossref
+		if (this.item.crossref) {
+			this.writeField("crossref", this.item.crossref);
+		}
 
-        // Handle DOI
-        if (this.item.DOI) {
-            this.writeField("doi", this.item.DOI);
-        }
+		// Handle DOI
+		if (this.item.DOI) {
+			this.writeField("doi", this.item.DOI);
+		}
 
-        // Handle edition
-        if (this.item.edition) {
-            // Convert number editions to ordinal words if they're just numbers
-            const editionStr = /^\d+$/.test(this.item.edition) 
-                ? this.numberToOrdinal(parseInt(this.item.edition))
-                : this.item.edition;
-            this.writeField("edition", editionStr);
-        }
+		// Handle edition
+		if (this.item.edition) {
+			// Convert number editions to ordinal words if they're just numbers
+			const editionStr = /^\d+$/.test(this.item.edition)
+				? this.numberToOrdinal(parseInt(this.item.edition))
+				: this.item.edition;
+			this.writeField("edition", editionStr);
+		}
 
-        // Handle email
-        if (this.item.email) {
-            this.writeField("email", this.item.email);
-        }
+		// Handle email
+		if (this.item.email) {
+			this.writeField("email", this.item.email);
+		}
 
-        // Handle organization
-        if (this.item.organization) {
-            this.writeField("organization", this.item.organization);
-        }
+		// Handle organization
+		if (this.item.organization) {
+			this.writeField("organization", this.item.organization);
+		}
 
 		// handle institution
 		if (this.item.institution) {
 			this.writeField("institution", this.item.institution);
 		}
 
-        // Handle series
-        if (this.item.series) {
-            this.writeField("series", this.item.series);
-        }
+		// Handle series
+		if (this.item.series) {
+			this.writeField("series", this.item.series);
+		}
 
-        // Handle type
-        if (this.item.thesisType || this.item.reportType) {
-            const typeValue = this.item.thesisType || this.item.reportType;
-            this.writeField("type", typeValue);
-        }
+		// Handle type
+		if (this.item.thesisType || this.item.reportType) {
+			const typeValue = this.item.thesisType || this.item.reportType;
+			this.writeField("type", typeValue);
+		}
 
-        // Handle volume
-        if (this.item.volume) {
-            this.writeField("volume", this.item.volume.toString());
-        }
+		// Handle volume
+		if (this.item.volume) {
+			this.writeField("volume", this.item.volume.toString());
+		}
 
-        this.writeLine("\n}");
+		this.writeLine("\n}");
 
-        return this.lines.join("");
+		return this.lines.join("");
     }
 
 	async toRIS() {

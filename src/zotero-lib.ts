@@ -26,6 +26,7 @@ import {
   saveGroup,
   // saveZoteroItems,
   saveZoteroItems,
+  updateLastSyncedAt,
 } from './local-db/db';
 import { readConfigFile } from './readConfigFile';
 import { as_array, as_value, catchme, colophon, getCanonicalURL, isomessage, urlify } from './utils';
@@ -3676,6 +3677,8 @@ const syncToLocalDB = async (args: ZoteroTypes.ISyncToLocalDBArgs, zoteroLib: an
     }
   } else {
     console.log('Everything already synced!!! Hurray!!!');
+    await updateLastSyncedAt();
+    fs.writeFileSync(path.join("/home/ubuntu", 'SKIP_INDEX'), '', { flag: 'w' });
   }
 
   const syncEnd = Date.now();
