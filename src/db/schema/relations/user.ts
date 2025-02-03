@@ -6,7 +6,11 @@ import { userCollection } from "../tables/userCollection";
 
 export const userRelations = relations(users, ({ many }) => ({
 	likes: many(usersToLikes),
-	following: many(userToFollow),
-	followers: many(userToFollow),
+	following: many(userToFollow, {
+		relationName: "userToFollowing"
+	}),
+	followers: many(userToFollow, {
+		relationName: "userToFollowers"
+	}),
 	collections: many(userCollection),
 }));

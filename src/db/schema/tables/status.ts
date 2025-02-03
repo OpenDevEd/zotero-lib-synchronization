@@ -25,7 +25,7 @@ export const status = pgTable("status", {
     companyName: text("companyName"),
     companyLogo: text("companyLogo"),
     companyFooter: json("companyFooter").$type<CompanyFooter>(),
-    links: json("links").$type<LinksList>(),
+    links: json("links").$type<LinkObject[]>(),
     externalLinks: json("externalLinks").$type<ExternalLinks>(),
     docsLink: text("docsLink"),
     style: text("style"),

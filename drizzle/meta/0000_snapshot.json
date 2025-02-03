@@ -1,5 +1,5 @@
 {
-  "id": "f1d2f83b-c42a-4477-a757-1d96466563b4",
+  "id": "200258c9-ffe3-4afd-b8c9-55798e6dc0e8",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -42,9 +42,34 @@
           "notNull": false,
           "default": 0
         },
-        "parentKey": {
-          "name": "parentKey",
+        "name": {
+          "name": "name",
           "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted": {
+          "name": "deleted",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "parentCollection": {
+          "name": "parentCollection",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "groupExternalId": {
+          "name": "groupExternalId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "relations": {
+          "name": "relations",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -65,15 +90,28 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "collection_parentKey_collection_key_fk": {
-          "name": "collection_parentKey_collection_key_fk",
+        "collection_parentCollection_collection_key_fk": {
+          "name": "collection_parentCollection_collection_key_fk",
           "tableFrom": "collection",
           "tableTo": "collection",
           "columnsFrom": [
-            "parentKey"
+            "parentCollection"
           ],
           "columnsTo": [
             "key"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "collection_groupExternalId_group_externalId_fk": {
+          "name": "collection_groupExternalId_group_externalId_fk",
+          "tableFrom": "collection",
+          "tableTo": "group",
+          "columnsFrom": [
+            "groupExternalId"
+          ],
+          "columnsTo": [
+            "externalId"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -121,7 +159,7 @@
         },
         "description": {
           "name": "description",
-          "type": "varchar(255)",
+          "type": "varchar",
           "primaryKey": false,
           "notNull": false
         },
@@ -215,6 +253,12 @@
         "abstractNote": {
           "name": "abstractNote",
           "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creators": {
+          "name": "creators",
+          "type": "jsonb[]",
           "primaryKey": false,
           "notNull": false
         },
@@ -812,6 +856,84 @@
           "primaryKey": false,
           "notNull": false
         },
+        "linkMode": {
+          "name": "linkMode",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contentType": {
+          "name": "contentType",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "filename": {
+          "name": "filename",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "md5": {
+          "name": "md5",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mtime": {
+          "name": "mtime",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "charset": {
+          "name": "charset",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "citation": {
+          "name": "citation",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dateAdded": {
+          "name": "dateAdded",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dateModified": {
+          "name": "dateModified",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fullTextPDF": {
+          "name": "fullTextPDF",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "PDFCoverPageImage": {
+          "name": "PDFCoverPageImage",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "PDFCoverPageWidth": {
+          "name": "PDFCoverPageWidth",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "PDFCoverPageHeight": {
+          "name": "PDFCoverPageHeight",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "deleted": {
           "name": "deleted",
           "type": "integer",
@@ -831,9 +953,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "collections": {
-          "name": "collections",
-          "type": "varchar[]",
+        "parentItem": {
+          "name": "parentItem",
+          "type": "varchar",
           "primaryKey": false,
           "notNull": false
         },
@@ -843,9 +965,15 @@
           "primaryKey": false,
           "notNull": false
         },
+        "collections": {
+          "name": "collections",
+          "type": "varchar[]",
+          "primaryKey": false,
+          "notNull": false
+        },
         "relations": {
           "name": "relations",
-          "type": "json",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -1049,6 +1177,120 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "public.itemToUserCollection": {
+      "name": "itemToUserCollection",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "gen_random_uuid()"
+        },
+        "itemKey": {
+          "name": "itemKey",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "userCollectionId": {
+          "name": "userCollectionId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deleted": {
+          "name": "deleted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "itemToUserCollection_itemKey_item_key_fk": {
+          "name": "itemToUserCollection_itemKey_item_key_fk",
+          "tableFrom": "itemToUserCollection",
+          "tableTo": "item",
+          "columnsFrom": [
+            "itemKey"
+          ],
+          "columnsTo": [
+            "key"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "itemToUserCollection_userCollectionId_userCollection_id_fk": {
+          "name": "itemToUserCollection_userCollectionId_userCollection_id_fk",
+          "tableFrom": "itemToUserCollection",
+          "tableTo": "userCollection",
+          "columnsFrom": [
+            "userCollectionId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "itemToUserCollection_userId_user_id_fk": {
+          "name": "itemToUserCollection_userId_user_id_fk",
+          "tableFrom": "itemToUserCollection",
+          "tableTo": "user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "itemToUserCollection_itemKey_userCollectionId_userId_pk": {
+          "name": "itemToUserCollection_itemKey_userCollectionId_userId_pk",
+          "columns": [
+            "itemKey",
+            "userCollectionId",
+            "userId"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "itemToUserCollection_id_unique": {
+          "name": "itemToUserCollection_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "checkConstraints": {}
+    },
     "public.language": {
       "name": "language",
       "schema": "",
@@ -1078,6 +1320,110 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "public.status": {
+      "name": "status",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "totalRecords": {
+          "name": "totalRecords",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "totalItems": {
+          "name": "totalItems",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "databaseUpdatedAt": {
+          "name": "databaseUpdatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "companyName": {
+          "name": "companyName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "companyLogo": {
+          "name": "companyLogo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "companyFooter": {
+          "name": "companyFooter",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "links": {
+          "name": "links",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "externalLinks": {
+          "name": "externalLinks",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "docsLink": {
+          "name": "docsLink",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "style": {
+          "name": "style",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "allRISURL": {
+          "name": "allRISURL",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "allBibTeXURL": {
+          "name": "allBibTeXURL",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
           "default": "now()"
         }
       },
@@ -1124,6 +1470,600 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "public.account": {
+      "name": "account",
+      "schema": "",
+      "columns": {
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "providerAccountId": {
+          "name": "providerAccountId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "refresh_token": {
+          "name": "refresh_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "access_token": {
+          "name": "access_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "token_type": {
+          "name": "token_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "id_token": {
+          "name": "id_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "session_state": {
+          "name": "session_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "account_userId_user_id_fk": {
+          "name": "account_userId_user_id_fk",
+          "tableFrom": "account",
+          "tableTo": "user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "account_provider_providerAccountId_pk": {
+          "name": "account_provider_providerAccountId_pk",
+          "columns": [
+            "provider",
+            "providerAccountId"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "public.authenticator": {
+      "name": "authenticator",
+      "schema": "",
+      "columns": {
+        "credentialID": {
+          "name": "credentialID",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "providerAccountId": {
+          "name": "providerAccountId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "credentialPublicKey": {
+          "name": "credentialPublicKey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "counter": {
+          "name": "counter",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "credentialDeviceType": {
+          "name": "credentialDeviceType",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "credentialBackedUp": {
+          "name": "credentialBackedUp",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transports": {
+          "name": "transports",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "authenticator_userId_user_id_fk": {
+          "name": "authenticator_userId_user_id_fk",
+          "tableFrom": "authenticator",
+          "tableTo": "user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "authenticator_userId_credentialID_pk": {
+          "name": "authenticator_userId_credentialID_pk",
+          "columns": [
+            "userId",
+            "credentialID"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "authenticator_credentialID_unique": {
+          "name": "authenticator_credentialID_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "credentialID"
+          ]
+        }
+      },
+      "checkConstraints": {}
+    },
+    "public.session": {
+      "name": "session",
+      "schema": "",
+      "columns": {
+        "sessionToken": {
+          "name": "sessionToken",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires": {
+          "name": "expires",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "session_userId_user_id_fk": {
+          "name": "session_userId_user_id_fk",
+          "tableFrom": "session",
+          "tableTo": "user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "public.user": {
+      "name": "user",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "emailVerified": {
+          "name": "emailVerified",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image": {
+          "name": "image",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password": {
+          "name": "password",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "user_email_unique": {
+          "name": "user_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "checkConstraints": {}
+    },
+    "public.verificationToken": {
+      "name": "verificationToken",
+      "schema": "",
+      "columns": {
+        "identifier": {
+          "name": "identifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires": {
+          "name": "expires",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "verificationToken_identifier_token_pk": {
+          "name": "verificationToken_identifier_token_pk",
+          "columns": [
+            "identifier",
+            "token"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "public.userCollection": {
+      "name": "userCollection",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "private": {
+          "name": "private",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "numItems": {
+          "name": "numItems",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "userCollection_userId_user_id_fk": {
+          "name": "userCollection_userId_user_id_fk",
+          "tableFrom": "userCollection",
+          "tableTo": "user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "public.userToFollow": {
+      "name": "userToFollow",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "gen_random_uuid()"
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "followingId": {
+          "name": "followingId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deleted": {
+          "name": "deleted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "userToFollow_userId_user_id_fk": {
+          "name": "userToFollow_userId_user_id_fk",
+          "tableFrom": "userToFollow",
+          "tableTo": "user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "userToFollow_followingId_user_id_fk": {
+          "name": "userToFollow_followingId_user_id_fk",
+          "tableFrom": "userToFollow",
+          "tableTo": "user",
+          "columnsFrom": [
+            "followingId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "userToFollow_userId_followingId_pk": {
+          "name": "userToFollow_userId_followingId_pk",
+          "columns": [
+            "userId",
+            "followingId"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "userToFollow_id_unique": {
+          "name": "userToFollow_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "checkConstraints": {}
+    },
+    "public.userToLikes": {
+      "name": "userToLikes",
+      "schema": "",
+      "columns": {
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "itemKey": {
+          "name": "itemKey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deleted": {
+          "name": "deleted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "userToLikes_userId_user_id_fk": {
+          "name": "userToLikes_userId_user_id_fk",
+          "tableFrom": "userToLikes",
+          "tableTo": "user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "userToLikes_itemKey_item_key_fk": {
+          "name": "userToLikes_itemKey_item_key_fk",
+          "tableFrom": "userToLikes",
+          "tableTo": "item",
+          "columnsFrom": [
+            "itemKey"
+          ],
+          "columnsTo": [
+            "key"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "userToLikes_userId_itemKey_pk": {
+          "name": "userToLikes_userId_itemKey_pk",
+          "columns": [
+            "userId",
+            "itemKey"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     }
   },
   "enums": {
@@ -1167,6 +2107,7 @@
       "schema": "public",
       "values": [
         "Artwork",
+        "Attachment",
         "AudioRecording",
         "Bill",
         "BlogPost",

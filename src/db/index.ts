@@ -28,6 +28,7 @@ import * as userCollectionRelations from './schema/relations/userCollection';
 import * as itemToUserCollectionTable from './schema/tables/itemToUserCollection';
 import * as itemToUserCollectionRelations from './schema/relations/itemToUserCollection';
 
+import * as statusTable from './schema/tables/status';
 
 export const schema = {
     ...itemTable,
@@ -50,6 +51,7 @@ export const schema = {
     ...userCollectionRelations,
     ...itemToUserCollectionTable,
     ...itemToUserCollectionRelations,
+    ...statusTable,
 }
 
 export const db = drizzle(process.env.DATABASE_URL_POST!, { schema });

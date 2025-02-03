@@ -3,7 +3,9 @@ import {
 	timestamp,
 	pgTable,
 	text,
-	primaryKey
+	primaryKey,
+	integer,
+	uuid,
 } from "drizzle-orm/pg-core";
 import { users } from "./user";
 import { item } from "./item";

@@ -7,8 +7,10 @@ CREATE TABLE IF NOT EXISTS "collection" (
 	"numCollections" integer DEFAULT 0,
 	"numItems" integer DEFAULT 0,
 	"name" varchar,
-	"parentCollection" varchar,
 	"deleted" integer DEFAULT 0,
+	"parentCollection" varchar,
+	"groupExternalId" integer,
+	"relations" jsonb,
 	"createdAt" timestamp DEFAULT now() NOT NULL,
 	"updatedAt" timestamp DEFAULT now() NOT NULL
 );
@@ -19,7 +21,7 @@ CREATE TABLE IF NOT EXISTS "group" (
 	"name" varchar(255) NOT NULL,
 	"version" integer DEFAULT 0 NOT NULL,
 	"type" varchar(255) NOT NULL,
-	"description" varchar(255),
+	"description" varchar,
 	"url" varchar(255),
 	"numItems" integer DEFAULT 0,
 	"itemsVersion" integer DEFAULT 0,
@@ -35,6 +37,7 @@ CREATE TABLE IF NOT EXISTS "item" (
 	"key" varchar(255) NOT NULL,
 	"title" varchar,
 	"abstractNote" varchar,
+	"creators" jsonb[],
 	"artworkMedium" varchar,
 	"artworkSize" varchar,
 	"date" varchar,
@@ -140,16 +143,20 @@ CREATE TABLE IF NOT EXISTS "item" (
 	"md5" varchar,
 	"mtime" varchar,
 	"charset" varchar,
+	"citation" varchar,
 	"dateAdded" timestamp,
 	"dateModified" timestamp,
 	"fullTextPDF" varchar,
 	"PDFCoverPageImage" varchar,
+	"PDFCoverPageWidth" integer,
+	"PDFCoverPageHeight" integer,
 	"deleted" integer DEFAULT 0,
 	"languageName" varchar,
 	"groupExternalId" integer,
 	"parentItem" varchar,
 	"tags" varchar[],
-	"relations" json,
+	"collections" varchar[],
+	"relations" jsonb,
 	"createdAt" timestamp DEFAULT now() NOT NULL,
 	"updatedAt" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "item_key_unique" UNIQUE("key")
@@ -171,11 +178,41 @@ CREATE TABLE IF NOT EXISTS "itemToTag" (
 	CONSTRAINT "itemToTag_itemKey_tagName_pk" PRIMARY KEY("itemKey","tagName")
 );
 --> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "itemToUserCollection" (
+	"id" uuid DEFAULT gen_random_uuid(),
+	"itemKey" varchar NOT NULL,
+	"userCollectionId" uuid NOT NULL,
+	"userId" text NOT NULL,
+	"deleted" boolean DEFAULT false NOT NULL,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"updatedAt" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "itemToUserCollection_itemKey_userCollectionId_userId_pk" PRIMARY KEY("itemKey","userCollectionId","userId"),
+	CONSTRAINT "itemToUserCollection_id_unique" UNIQUE("id")
+);
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "language" (
 	"id" uuid DEFAULT gen_random_uuid(),
 	"name" varchar PRIMARY KEY NOT NULL,
 	"createdAt" timestamp DEFAULT now() NOT NULL,
 	"updatedAt" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "status" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"totalRecords" integer,
+	"totalItems" integer,
+	"databaseUpdatedAt" timestamp,
+	"companyName" text,
+	"companyLogo" text,
+	"companyFooter" json,
+	"links" json,
+	"externalLinks" json,
+	"docsLink" text,
+	"style" text,
+	"allRISURL" text,
+	"allBibTeXURL" text,
+	"createdAt" timestamp DEFAULT now(),
+	"updatedAt" timestamp DEFAULT now()
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "tag" (
@@ -185,8 +222,99 @@ CREATE TABLE IF NOT EXISTS "tag" (
 	"updatedAt" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "account" (
+	"userId" text NOT NULL,
+	"type" text NOT NULL,
+	"provider" text NOT NULL,
+	"providerAccountId" text NOT NULL,
+	"refresh_token" text,
+	"access_token" text,
+	"expires_at" integer,
+	"token_type" text,
+	"scope" text,
+	"id_token" text,
+	"session_state" text,
+	CONSTRAINT "account_provider_providerAccountId_pk" PRIMARY KEY("provider","providerAccountId")
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "authenticator" (
+	"credentialID" text NOT NULL,
+	"userId" text NOT NULL,
+	"providerAccountId" text NOT NULL,
+	"credentialPublicKey" text NOT NULL,
+	"counter" integer NOT NULL,
+	"credentialDeviceType" text NOT NULL,
+	"credentialBackedUp" boolean NOT NULL,
+	"transports" text,
+	CONSTRAINT "authenticator_userId_credentialID_pk" PRIMARY KEY("userId","credentialID"),
+	CONSTRAINT "authenticator_credentialID_unique" UNIQUE("credentialID")
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "session" (
+	"sessionToken" text PRIMARY KEY NOT NULL,
+	"userId" text NOT NULL,
+	"expires" timestamp NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "user" (
+	"id" text PRIMARY KEY NOT NULL,
+	"name" text,
+	"email" text,
+	"emailVerified" timestamp,
+	"image" text,
+	"password" text,
+	"description" text,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"updatedAt" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "user_email_unique" UNIQUE("email")
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "verificationToken" (
+	"identifier" text NOT NULL,
+	"token" text NOT NULL,
+	"expires" timestamp NOT NULL,
+	CONSTRAINT "verificationToken_identifier_token_pk" PRIMARY KEY("identifier","token")
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "userCollection" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"userId" text NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"description" varchar(255),
+	"private" boolean DEFAULT false,
+	"numItems" integer DEFAULT 0,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"updatedAt" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "userToFollow" (
+	"id" uuid DEFAULT gen_random_uuid(),
+	"userId" text NOT NULL,
+	"followingId" text NOT NULL,
+	"deleted" boolean DEFAULT false NOT NULL,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"updatedAt" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "userToFollow_userId_followingId_pk" PRIMARY KEY("userId","followingId"),
+	CONSTRAINT "userToFollow_id_unique" UNIQUE("id")
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "userToLikes" (
+	"userId" text NOT NULL,
+	"itemKey" text NOT NULL,
+	"deleted" boolean DEFAULT false NOT NULL,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"updatedAt" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "userToLikes_userId_itemKey_pk" PRIMARY KEY("userId","itemKey")
+);
+--> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "collection" ADD CONSTRAINT "collection_parentCollection_collection_key_fk" FOREIGN KEY ("parentCollection") REFERENCES "public"."collection"("key") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "collection" ADD CONSTRAINT "collection_groupExternalId_group_externalId_fk" FOREIGN KEY ("groupExternalId") REFERENCES "public"."group"("externalId") ON DELETE no action ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -199,12 +327,6 @@ END $$;
 --> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "item" ADD CONSTRAINT "item_groupExternalId_group_externalId_fk" FOREIGN KEY ("groupExternalId") REFERENCES "public"."group"("externalId") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "item" ADD CONSTRAINT "item_parentItem_item_key_fk" FOREIGN KEY ("parentItem") REFERENCES "public"."item"("key") ON DELETE no action ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -229,6 +351,72 @@ END $$;
 --> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "itemToTag" ADD CONSTRAINT "itemToTag_tagName_tag_name_fk" FOREIGN KEY ("tagName") REFERENCES "public"."tag"("name") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "itemToUserCollection" ADD CONSTRAINT "itemToUserCollection_itemKey_item_key_fk" FOREIGN KEY ("itemKey") REFERENCES "public"."item"("key") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "itemToUserCollection" ADD CONSTRAINT "itemToUserCollection_userCollectionId_userCollection_id_fk" FOREIGN KEY ("userCollectionId") REFERENCES "public"."userCollection"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "itemToUserCollection" ADD CONSTRAINT "itemToUserCollection_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "account" ADD CONSTRAINT "account_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "authenticator" ADD CONSTRAINT "authenticator_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "session" ADD CONSTRAINT "session_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "userCollection" ADD CONSTRAINT "userCollection_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "userToFollow" ADD CONSTRAINT "userToFollow_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "userToFollow" ADD CONSTRAINT "userToFollow_followingId_user_id_fk" FOREIGN KEY ("followingId") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "userToLikes" ADD CONSTRAINT "userToLikes_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "userToLikes" ADD CONSTRAINT "userToLikes_itemKey_item_key_fk" FOREIGN KEY ("itemKey") REFERENCES "public"."item"("key") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
