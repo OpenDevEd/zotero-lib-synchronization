@@ -8,6 +8,7 @@ export const userCollection = pgTable("userCollection", {
     description: varchar("description", { length: 255 }),
     private: boolean("private").default(false),
     numItems: integer("numItems").default(0),
+    deleted: boolean("deleted").default(false),
     createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
 });
