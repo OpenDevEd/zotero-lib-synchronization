@@ -33,7 +33,7 @@ import { as_array, as_value, catchme, colophon, getCanonicalURL, isomessage, url
 import compare from './utils/compareItems';
 import md5File from './utils/md5-file';
 // import saveToFile from './local-db/saveToFile';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import path from 'path';
 import webSocket from 'ws';
 import { checkForValidLockFile, removeLockFile } from './lock.utils';
@@ -471,7 +471,7 @@ class Zotero {
     } = { key: '' };
     const key = args.key;
     const res = key?.match(/^zotero\:\/\/select\/groups\/(library|\d+)\/(items|collections)\/([A-Z01-9]+)/);
-    
+
     if (!key)
       return x;
     else if (res) {
@@ -1171,8 +1171,7 @@ class Zotero {
           // upload file using attachment template
           const uploadItem = await this.http.post('/items', JSON.stringify([attachmentFileData]), {}, this.config);
           const uploadAuthorization = await this.http.post(
-            `/items/${uploadItem.successful[0].key}/file?md5=${md5File(filename)}&filename=${
-              attachmentFileData.filename
+            `/items/${uploadItem.successful[0].key}/file?md5=${md5File(filename)}&filename=${attachmentFileData.filename
             }&filesize=${fs.statSync(filename)['size']}&mtime=${stat.mtimeMs}`,
             '{}',
             { 'If-None-Match': '*' },
@@ -1368,12 +1367,12 @@ class Zotero {
     const finalactions = this.finalActions(result);
     return args.fullresponse
       ? {
-          status: 0,
-          message: 'success',
-          output,
-          result,
-          final: finalactions,
-        }
+        status: 0,
+        message: 'success',
+        output,
+        result,
+        final: finalactions,
+      }
       : result;
     // TODO: What if this fails? Zotero will return, e.g.   "message": "404 - {\"type\":\"Buffer\",\"data\":[78,111,116,32,102,111,117,110,100]}",
     // logger.info(Buffer.from(obj.data).toString())
@@ -2607,7 +2606,7 @@ class Zotero {
    * @param args.groupid - The ID of the group to resolve the items from.
    * @returns The resolved result, null if keys not provided.
    */
-  public async resolvefunc(args: ZoteroTypes.IResolveFuncArgs): Promise<Record<string, object> | null>  {
+  public async resolvefunc(args: ZoteroTypes.IResolveFuncArgs): Promise<Record<string, object> | null> {
     const { PrismaClient } = require('@prisma/client');
     const prisma = new PrismaClient();
 
@@ -2628,7 +2627,7 @@ class Zotero {
           groupid = group_id;
           itemid = key;
           key = `${groupid}:${itemid}`;
-        } else [groupid, itemid] = key.split(':');
+        } else[groupid, itemid] = key.split(':');
 
         // split key into groupid and itemid
         if (!groupid || !itemid) {
@@ -2688,7 +2687,7 @@ class Zotero {
                 logger.info('group_id is required');
                 process.exit(1);
               }
-              
+
               rowsitem = await prisma.items.findMany({
                 where: {
                   group_id: parseInt(group_id),
@@ -2793,22 +2792,22 @@ class Zotero {
     if (!key) {
       return this.message(1, 'key is required');
     }
-    
+
     const res = await axios.get(`https://api.zotero.org/groups/${group_id || this.config.group_id}/items/${key}/file`, {
-      responseType: 'stream', 
+      responseType: 'stream',
       headers: {
         Authorization: `Bearer ${this.config.api_key}`,
       },
     });
-  
+
     if (!res) {
       return this.message(1, 'Failed to download attachment');
     }
-    
+
     const writer = fs.createWriteStream(filename);
-  
+
     res.data.pipe(writer);
-  
+
     await new Promise<void>((resolve, reject) => {
       writer.on('finish', resolve);
       writer.on('error', reject);
@@ -3265,12 +3264,12 @@ class Zotero {
               .replace(
                 /\((\d\d\d\d)\)/,
                 '($1' +
-                  element.data.tags
-                    .filter((i) => i.tag.match(/_yl:/))
-                    .map((item) => item.tag)
-                    .join(',')
-                    .replace(/_yl\:/, '') +
-                  ')',
+                element.data.tags
+                  .filter((i) => i.tag.match(/_yl:/))
+                  .map((item) => item.tag)
+                  .join(',')
+                  .replace(/_yl\:/, '') +
+                ')',
               )
               .replace('</div>\n</div>', '')
               .replace(/\.\s*$/, '')
@@ -3584,8 +3583,9 @@ const fetchGroupItems = async (
     });
     // Extend this as needed for further processing
     return res;
-  } catch (error) {
-    console.log('Error fetching group items');
+  } catch (error: unknown) {
+    const axiosError = error as AxiosError;
+    console.log('Error fetching group items', axiosError.response?.data);
     console.log('retrying in 2 seconds');
     sleep(2000);
     return await fetchGroupItems(group, itemIds, args);
@@ -3610,14 +3610,14 @@ const syncToLocalDB = async (args: ZoteroTypes.ISyncToLocalDBArgs, zoteroLib: an
 
   const onlineGroupsZ = await fetchGroups({ ...args });
   console.log('onlineGroupsZ', onlineGroupsZ);
-  const onlineGroups = { }
+  const onlineGroups = {}
   onlineGroups[zoteroLib.config.group_id] = 0
   console.log('onlineGroups', onlineGroups);
   const offlineGroups = await getAllGroups();
 
   console.log('offlineGroups', offlineGroups);
 
-  const offlineItemsVersion = offlineGroups.reduce( (a: any, c: any) => ({ ...a, [c.externalId]: c.itemsVersion }), {});
+  const offlineItemsVersion = offlineGroups.reduce((a: any, c: any) => ({ ...a, [c.externalId]: c.itemsVersion }), {});
 
   const changedGroups: string[] = groupid ? [groupid] : await fetchChangedGroups(onlineGroups, offlineGroups);
 
@@ -3652,13 +3652,66 @@ const syncToLocalDB = async (args: ZoteroTypes.ISyncToLocalDBArgs, zoteroLib: an
     for (let group of chunckedItemsByGroup) {
       console.log('group: ', group.group, 'item count: ', group.itemIds.length);
       if (group.itemIds.length === 0) continue;
-      const resItems = await Promise.all(
-        group.itemIds.map(async (itemIds) => {
-          const { data, headers } = await fetchGroupItems(group, itemIds, { api_key: args.api_key || "" });
 
-          return { data, headers };
-        }),
-      );
+      const chunksDir = path.join(process.cwd(), 'chunks');
+      let resItems: { data: any; headers: any }[] = [];
+
+      // Check if chunks directory exists and has files
+      if (fs.existsSync(chunksDir) && fs.readdirSync(chunksDir).length > 0 && args.usejson) {
+        console.log('Found existing chunks, reading from files...');
+        const chunkFiles = fs.readdirSync(chunksDir).sort();
+        for (const file of chunkFiles) {
+          const chunkPath = path.join(chunksDir, file);
+          const chunkData = JSON.parse(fs.readFileSync(chunkPath, 'utf8'));
+          resItems.push(...chunkData);
+        }
+        console.log(`Loaded ${resItems.length} items from chunks`);
+      } else {
+        // Helper function to process items in chunks
+        async function processChunkedRequests(group: any, itemIds: string[], apiKey: string, chunkSize = 5) {
+          const results: { data: any; headers: any }[] = [];  // Add explicit type here
+          console.log(`processing ${itemIds.length} chunks`);
+          for (let i = 0; i < itemIds.length; i += chunkSize) {
+            const chunk = itemIds.slice(i, i + chunkSize);
+            const chunkResults = await Promise.all(
+              chunk.map(async (ids) => {
+                const { data, headers } = await fetchGroupItems(group, ids, { api_key: apiKey });
+                return { data, headers };
+              })
+            );
+            results.push(...chunkResults);
+            console.log(`fetched ${i} chunks`);
+            if (i + chunkSize < itemIds.length) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+          }
+          return results;
+        }
+
+        // Replace the existing Promise.all block with the chunked processing
+        resItems = await processChunkedRequests(group, group.itemIds, args.api_key || "");
+
+        // Ensure chunks directory exists and is empty
+        if (args.usejson) {
+          if (fs.existsSync(chunksDir)) {
+            // Empty the directory
+            fs.readdirSync(chunksDir).forEach(file => {
+              fs.unlinkSync(path.join(chunksDir, file));
+            });
+          } else {
+            fs.mkdirSync(chunksDir, { recursive: true });
+          }
+
+          // Write chunks to separate files
+          console.log(`writing ${resItems.length} chunks to ${chunksDir}`);
+          const chunkSize = 100; // Adjust based on your needs
+          for (let i = 0; i < resItems.length; i += chunkSize) {
+            const chunk = resItems.slice(i, i + chunkSize);
+            const chunkPath = path.join(chunksDir, `resItems-${i / chunkSize}.json`);
+            fs.writeFileSync(chunkPath, JSON.stringify(chunk, null, 2));
+          }
+        }
+      }
 
       const lastModifiedVersion = resItems[resItems.length - 1].headers['last-modified-version'];
       const groupItems = resItems.map((item) => item.data);

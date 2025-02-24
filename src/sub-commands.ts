@@ -936,7 +936,18 @@ subParsersMap.set('db', function (subparsers, subCmdName: string) {
     action: 'store_true',
     help: 'Sync online library in local database',
   });
-
+  argparser.add_argument('--allfiles', {
+    action: 'store_true',
+    help: 'Sync all files in local database',
+  });
+  argparser.add_argument('--usejson', {
+    action: 'store_true',
+    help: 'Use json file to sync items in local database',
+  });
+  argparser.add_argument('--clearbucket', {
+    action: 'store_true',
+    help: 'Clear the bucket in local database',
+  });
   argparser.add_argument('--lookup', {
     action: 'store_true',
     help: 'Lookup records in local db',

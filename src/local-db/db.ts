@@ -18,11 +18,10 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import pdf from 'pdf-parse';
 import { fromBuffer } from 'pdf2pic'; // requires graphicsmagick and ghostscript
 import { v4 as uuidv4 } from 'uuid';
-import { BibTeXExporter, mappingTable } from '../utils/formatAsBibTeX';
-import { Cite } from '@citation-js/core';
-import '@citation-js/plugin-bibtex';
-import '@citation-js/plugin-csl';
-import '@citation-js/plugin-ris';
+import { mappingTable } from '../utils/formatAsBibTeX';
+// import '@citation-js/plugin-bibtex';
+// import '@citation-js/plugin-csl';
+// import '@citation-js/plugin-ris';
 
 const BATCH_SIZE = 500;
 const RETRY_ATTEMPTS = 3;
@@ -313,67 +312,67 @@ async function createItem(item: ZoteroItem, allFetchedItems: ZoteroItem[][]): Pr
     }
   });
 
-  let bibtex;
-  let bibtexString;
-  let citation;
-  let citationString;
+  // let bibtex;
+  // let bibtexString;
+  // let citation;
+  // let citationString;
 
-  if (
-    !(item.data.itemType == 'Attachment' || item.data.itemType == 'Note' || item.data.deleted || item.data.parentItem)
-  ) {
-    try {
-      // create a folder named `{item.key}` in `citationtest`
-      // fs.mkdirSync(`citationtest/${item.key}`, { recursive: true });
+  // if (
+  //   !(item.data.itemType == 'Attachment' || item.data.itemType == 'Note' || item.data.deleted || item.data.parentItem)
+  // ) {
+  //   try {
+  //     // create a folder named `{item.key}` in `citationtest`
+  //     // fs.mkdirSync(`citationtest/${item.key}`, { recursive: true });
 
-      // write the item to a file named `{item.key}.json` in the folder
-      // fs.writeFileSync(`citationtest/${item.key}/${item.key}.json`, JSON.stringify(item, null, 2));
+  //     // write the item to a file named `{item.key}.json` in the folder
+  //     // fs.writeFileSync(`citationtest/${item.key}/${item.key}.json`, JSON.stringify(item, null, 2));
 
-      bibtex = new BibTeXExporter(
-        {
-          ...item.data,
-          attachments: allFetchedItems
-            .flat()
-            .filter((i) => i.data.parentItem == item.key)
-            .map((i) => ({
-              title: i.data.title,
-              localPath: i.data.url,
-              mimeType: i.data.contentType,
-            })),
-        },
-        {
-          exportFileData: true,
-          exportNotes: true,
-        },
-      );
+  //     bibtex = new BibTeXExporter(
+  //       {
+  //         ...item.data,
+  //         attachments: allFetchedItems
+  //           .flat()
+  //           .filter((i) => i.data.parentItem == item.key)
+  //           .map((i) => ({
+  //             title: i.data.title,
+  //             localPath: i.data.url,
+  //             mimeType: i.data.contentType,
+  //           })),
+  //       },
+  //       {
+  //         exportFileData: true,
+  //         exportNotes: true,
+  //       },
+  //     );
 
-      bibtexString = bibtex.format();
+  //     bibtexString = bibtex.format();
 
-      // write the bibtex to a file named `{item.key}.bib` in the folder
-      // fs.writeFileSync(`citationtest/${item.key}/${item.key}.bib`, bibtexString);
+  //     // write the bibtex to a file named `{item.key}.bib` in the folder
+  //     // fs.writeFileSync(`citationtest/${item.key}/${item.key}.bib`, bibtexString);
 
-      citationString;
-      try {
-        citation = await Cite.async(bibtexString);
-        citationString = citation.format('bibliography', {
-          format: 'html',
-          template: 'apa',
-          lang: 'en-US',
-        });
-      } catch (e) {
-        console.log('Error on ', item.key);
-        console.log(e);
-      }
-      // write the citation to a file named `{item.key}.html` in the folder
-      // fs.writeFileSync(`citationtest/${item.key}/${item.key}.html`, citationString);
+  //     citationString;
+  //     try {
+  //       citation = await Cite.async(bibtexString);
+  //       citationString = citation.format('bibliography', {
+  //         format: 'html',
+  //         template: 'apa',
+  //         lang: 'en-US',
+  //       });
+  //     } catch (e) {
+  //       console.log('Error on ', item.key);
+  //       console.log(e);
+  //     }
+  //     // write the citation to a file named `{item.key}.html` in the folder
+  //     // fs.writeFileSync(`citationtest/${item.key}/${item.key}.html`, citationString);
 
-      obj.citation = citationString;
-    } catch (e) {
-      fs.appendFileSync(
-        'citationErrors.txt',
-        `${item.key} - ${e}\n\nbitex: ${bibtexString}\n\ncitation: ${citationString}`,
-      );
-    }
-  }
+  //     obj.citation = citationString;
+  //   } catch (e) {
+  //     fs.appendFileSync(
+  //       'citationErrors.txt',
+  //       `${item.key} - ${e}\n\nbitex: ${bibtexString}\n\ncitation: ${citationString}`,
+  //     );
+  //   }
+  // }
 
   if (item.data.language && item.data.language.length > 0) obj.languageName = item.data.language;
   return obj as ItemTableRead;
@@ -472,14 +471,11 @@ async function downloadFile(item: ZoteroItem, groupId: string, zoteroLib: Zotero
  * @param {ZoteroItem} item - The item to check
  * @returns {boolean} True if item meets all criteria, false otherwise
  */
-function itemChecks(item: ZoteroItem): boolean {
+function itemChecks(item: ZoteroItem, args: ZoteroTypes.ISyncToLocalDBArgs): boolean {
   if (item.data.itemType != 'Attachment') {
     return false;
   }
   if (!item.data.parentItem || item.data.parentItem == '') {
-    return false;
-  }
-  if (!item.data.tags || !item.data.tags.find((tag) => tag.tag == '_publish' || tag.tag == 'publishPDF')) {
     return false;
   }
   if (!item.data.contentType || item.data.contentType != 'application/pdf') {
@@ -488,7 +484,12 @@ function itemChecks(item: ZoteroItem): boolean {
   if (!item.data.md5) {
     return false;
   }
-
+  if (args.allfiles) {
+    return true;
+  }
+  if (!item.data.tags || !item.data.tags.find((tag) => tag.tag == '_publish' || tag.tag == 'publishPDF')) {
+    return false;
+  }
   return true;
 }
 
@@ -836,68 +837,68 @@ export async function createStatus(supabaseClient: SupabaseClient, groupId: stri
 
   const allItems = await db.query.item.findMany();
 
-  let allRIS = ``;
-  let allBibTeX = ``;
+  // let allRIS = ``;
+  // let allBibTeX = ``;
 
-  const promises: Promise<void>[] = [];
-  const errors: string[] = [];
+  // const promises: Promise<void>[] = [];
+  // const errors: string[] = [];
 
-  let totalRecords = 0;
+  let totalRecords = allItems.filter((item) => item.itemType != 'Attachment' && item.itemType != 'Note' && !item.deleted).length;
 
-  for (const item of allItems) {
-    promises.push(
-      new Promise<void>(async (resolve, reject) => {
-        try {
-          if (item.itemType == 'Attachment' || item.itemType == 'Note' || item.deleted) return resolve();
+  // for (const item of allItems) {
+  //   promises.push(
+  //     new Promise<void>(async (resolve, reject) => {
+  //       try {
+  //         if (item.itemType == 'Attachment' || item.itemType == 'Note' || item.deleted) return resolve();
 
-          const bibtex = new BibTeXExporter(item);
-          const bibtexText = bibtex.format();
-          allBibTeX += bibtexText + '\n';
+  //         const bibtex = new BibTeXExporter(item);
+  //         const bibtexText = bibtex.format();
+  //         allBibTeX += bibtexText + '\n';
 
-          const cite = await Cite.async(bibtexText);
-          const ris = cite.format('ris');
-          allRIS += ris + '\n';
+  //         const cite = await Cite.async(bibtexText);
+  //         const ris = cite.format('ris');
+  //         allRIS += ris + '\n';
 
-          totalRecords++;
-          resolve();
-        } catch (e: any) {
-          errors.push(`${item.key} - ${e.message}`);
-          reject(e);
-        }
-      }),
-    );
-  }
+  //         totalRecords++;
+  //         resolve();
+  //       } catch (e: any) {
+  //         errors.push(`${item.key} - ${e.message}`);
+  //         reject(e);
+  //       }
+  //     }),
+  //   );
+  // }
 
-  await Promise.allSettled(promises);
+  // await Promise.allSettled(promises);
 
-  await supabaseClient.storage
-    .from(process.env.SUPABASE_STORAGE_BUCKET!)
-    .upload(`${groupId}/allRIS.ris`, Buffer.from(allRIS), {
-      upsert: true,
-      contentType: 'application/x-research-info-systems',
-    });
+  // await supabaseClient.storage
+  //   .from(process.env.SUPABASE_STORAGE_BUCKET!)
+  //   .upload(`${groupId}/allRIS.ris`, Buffer.from(allRIS), {
+  //     upsert: true,
+  //     contentType: 'application/x-research-info-systems',
+  //   });
 
-  await supabaseClient.storage
-    .from(process.env.SUPABASE_STORAGE_BUCKET!)
-    .upload(`${groupId}/allBibTeX.bib`, Buffer.from(allBibTeX), {
-      upsert: true,
-      contentType: 'application/x-bibtex',
-    });
+  // await supabaseClient.storage
+  //   .from(process.env.SUPABASE_STORAGE_BUCKET!)
+  //   .upload(`${groupId}/allBibTeX.bib`, Buffer.from(allBibTeX), {
+  //     upsert: true,
+  //     contentType: 'application/x-bibtex',
+  //   });
 
-  const risUrl = supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).getPublicUrl(`${groupId}/allRIS.ris`)
-    .data.publicUrl;
+  // const risUrl = supabaseClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET!).getPublicUrl(`${groupId}/allRIS.ris`)
+  //   .data.publicUrl;
 
-  const bibtexUrl = supabaseClient.storage
-    .from(process.env.SUPABASE_STORAGE_BUCKET!)
-    .getPublicUrl(`${groupId}/allBibTeX.bib`).data.publicUrl;
+  // const bibtexUrl = supabaseClient.storage
+  //   .from(process.env.SUPABASE_STORAGE_BUCKET!)
+  //   .getPublicUrl(`${groupId}/allBibTeX.bib`).data.publicUrl;
 
   const fieldsToInsert: StatusTableWrite = {
     totalItems: allItems.length,
     totalRecords,
     databaseUpdatedAt: new Date(),
     updatedAt: new Date(),
-    allRISURL: risUrl,
-    allBibTeXURL: bibtexUrl,
+    // allRISURL: risUrl,
+    // allBibTeXURL: bibtexUrl,
   };
 
   const statusObj = await db
@@ -982,9 +983,10 @@ export async function saveZoteroItems(
   config: ZoteroTypes.ISyncToLocalDBArgs,
   offlineItemsVersion: Record<string, number> | null,
 ): Promise<void> {
+  console.log("all_files is ", config.allfiles);
   const supabaseClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE!);
 
-  if (false) {
+  if (config.clearbucket) {
     await deleteGroupFiles(supabaseClient, groupId, process.env.SUPABASE_STORAGE_BUCKET!);
   }
 
@@ -1013,7 +1015,9 @@ export async function saveZoteroItems(
         const itemObj = await createItem(item, allFetchedItems);
         items.push(itemObj);
 
-        if (itemChecks(item)) {
+        // console.log(`${items.length} items processed`);
+
+        if (itemChecks(item, config)) {
           uploadPromises.push(processFile(item, itemObj, groupId, zoteroLib, allItems, supabaseClient));
         }
 

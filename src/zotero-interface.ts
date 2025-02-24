@@ -299,6 +299,9 @@ namespace ZoteroTypes {
     groupid?: string;
     api_key?: string;
     group_id?: string;
+    allfiles?: boolean;
+    usejson?: boolean;
+    clearbucket?: boolean;
   }
 
   export interface IZenodoArgs extends IZoteroCongif {
