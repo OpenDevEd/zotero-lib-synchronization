@@ -17,7 +17,6 @@ import { ZoteroTypes } from './../zotero-interface';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import pdf from 'pdf-parse';
 import { fromBuffer } from 'pdf2pic'; // requires graphicsmagick and ghostscript
-import { v4 as uuidv4 } from 'uuid';
 import { mappingTable } from '../utils/formatAsBibTeX';
 // import '@citation-js/plugin-bibtex';
 // import '@citation-js/plugin-csl';
@@ -229,6 +228,12 @@ const collectionColumns = Object.values(getTableColumns(collection)).map((col: a
  */
 export async function getAllGroups(): Promise<GroupTableRead[]> {
   const groups = await db.query.group.findMany();
+
+  // // find the group with the key "2129771" and change its version to 45409
+  // const group = groups.find((group) => group.externalId == 2129771);
+  // if (group) {
+  //   group.itemsVersion = 45408;
+  // }
 
   return groups;
 }
@@ -529,7 +534,7 @@ async function checkExistingFile(
 ): Promise<boolean> {
   if (!dbItem) return true;
 
-  if (dbItem.md5 == item.data.md5 && dbItem.mtime == item.data.mtime && dbItem.filename == item.data.filename) {
+  if (dbItem.md5 == item.data.md5 && dbItem.mtime == item.data.mtime && dbItem.filename == item.data.filename && dbItem.PDFCoverPageImage != null) {
     console.log(`• ERROR [${item.data.parentItem} / ${item.key}] File already exists in database`);
     return false;
   }
@@ -635,8 +640,7 @@ async function uploadToSupabase(
   coverData: Buffer,
   supabaseClient: SupabaseClient,
 ): Promise<{ pdfUrl: string; coverUrl: string } | null> {
-  const randomUUID = uuidv4();
-  const pdfPath = `${groupId}/${item.data.parentItem}/${item.key}/${randomUUID}.pdf`;
+  const pdfPath = `${groupId}/${item.data.parentItem}/${item.key}/file.pdf`;
   const coverPath = `${groupId}/${item.data.parentItem}/${item.key}/cover.png`;
 
   const uploadResult = await retryOperation(() =>
