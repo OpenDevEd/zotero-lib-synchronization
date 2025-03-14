@@ -229,10 +229,10 @@ const collectionColumns = Object.values(getTableColumns(collection)).map((col: a
 export async function getAllGroups(): Promise<GroupTableRead[]> {
   const groups = await db.query.group.findMany();
 
-  // // find the group with the key "2129771" and change its version to 45409
+  // find the group with the key "2129771" and change its version to 45409
   // const group = groups.find((group) => group.externalId == 2129771);
   // if (group) {
-  //   group.itemsVersion = 45408;
+  //   group.itemsVersion = 45400;
   // }
 
   return groups;
@@ -296,6 +296,7 @@ function matchItemType(item: ZoteroItem): boolean {
  */
 async function createItem(item: ZoteroItem, allFetchedItems: ZoteroItem[][]): Promise<ItemTableRead> {
   const obj = {} as ItemTableWrite;
+  console.log("creating", item.key)
   obj.key = item.key;
   obj.version = item.version;
   obj.groupExternalId = Number(item.library.id);
@@ -559,6 +560,9 @@ async function checkExistingFile(
     }
     itemObj.url = null;
     itemObj.fullTextPDF = null;
+    itemObj.PDFCoverPageImage = null;
+    itemObj.PDFCoverPageWidth = null;
+    itemObj.PDFCoverPageHeight = null;
   }
   return true;
 }
@@ -707,6 +711,14 @@ async function processFile(
 ) {
   const dbItem = items.find((i) => i.key == item.key);
 
+  if (dbItem) {
+    itemObj.url = dbItem.url;
+    itemObj.fullTextPDF = dbItem.fullTextPDF;
+    itemObj.PDFCoverPageImage = dbItem.PDFCoverPageImage;
+    itemObj.PDFCoverPageWidth = dbItem.PDFCoverPageWidth;
+    itemObj.PDFCoverPageHeight = dbItem.PDFCoverPageHeight;
+  }
+
   if (!(await checkExistingFile(item, dbItem, itemObj, groupId, supabaseClient))) {
     return;
   }
@@ -735,7 +747,7 @@ async function processFile(
 
   const urls = await uploadToSupabase(item, groupId, PDFData, coverData, supabaseClient);
   if (!urls) return;
-
+  
   itemObj.url = cleanString(urls.pdfUrl);
   itemObj.fullTextPDF = cleanString(text);
   itemObj.PDFCoverPageImage = cleanString(urls.coverUrl);
@@ -768,6 +780,9 @@ function createCollection(collection: any): CollectionTableWrite {
       obj.deleted = collection.data.deleted ? 1 : 0;
     } else if (column in collection.data) {
       obj[column] = collection.data[column];
+      if (column == "url") {
+        console.log("IN THE FOR EACH LOOP Setting url to ", collection.data[column])
+      }
     }
   });
 
