@@ -24,6 +24,7 @@ export const itemType = pgEnum("itemType", [
 	"Letter",
 	"MagazineArticle",
 	"Manuscript",
+	"Preprint",
 	"Map",
 	"NewspaperArticle",
 	"Note",
