@@ -17,7 +17,7 @@ import { ZoteroTypes } from './../zotero-interface';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import pdf from 'pdf-parse';
 import { fromBuffer } from 'pdf2pic'; // requires graphicsmagick and ghostscript
-import { mappingTable } from '../utils/formatAsBibTeX';
+// import { mappingTable } from '../utils/formatAsBibTeX';
 // import '@citation-js/plugin-bibtex';
 // import '@citation-js/plugin-csl';
 // import '@citation-js/plugin-ris';
@@ -28,6 +28,7 @@ const RETRY_DELAY = 3000;
 const PROCESS_BATCH_SIZE = 20;
 const DELETE_BATCH_SIZE = 100;
 const STATIC_STATUS_UUID = '00000000-0000-0000-0000-000000000000';
+const mapKeyToItem = new Map<string, ZoteroItem | ItemTableWrite>();
 
 export type GroupTableWrite = InferInsertModel<typeof group>;
 export type ItemTableWrite = InferInsertModel<typeof item>;
@@ -229,10 +230,9 @@ const collectionColumns = Object.values(getTableColumns(collection)).map((col: a
 export async function getAllGroups(): Promise<GroupTableRead[]> {
   const groups = await db.query.group.findMany();
 
-  // find the group with the key "2129771" and change its version to 45409
-  // const group = groups.find((group) => group.externalId == 2129771);
+  // const group = groups.find((group) => group.externalId == 5724422);
   // if (group) {
-  //   group.itemsVersion = 45400;
+  //   group.itemsVersion = 0;
   // }
 
   return groups;
@@ -294,7 +294,7 @@ function matchItemType(item: ZoteroItem): boolean {
  * @param {ZoteroItem} item - The Zotero item to create from
  * @returns {ItemTableRead} The created item object
  */
-async function createItem(item: ZoteroItem, allFetchedItems: ZoteroItem[][]): Promise<ItemTableRead> {
+async function createItem(item: ZoteroItem): Promise<ItemTableRead> {
   const obj = {} as ItemTableWrite;
   console.log("creating", item.key)
   obj.key = item.key;
@@ -477,7 +477,20 @@ async function downloadFile(item: ZoteroItem, groupId: string, zoteroLib: Zotero
  * @param {ZoteroItem} item - The item to check
  * @returns {boolean} True if item meets all criteria, false otherwise
  */
-function itemChecks(item: ZoteroItem, args: ZoteroTypes.ISyncToLocalDBArgs): boolean {
+function itemChecks(item: ZoteroItem, args: ZoteroTypes.ISyncToLocalDBArgs, items: any[]): boolean {
+  const mappedParentItem = item.data.parentItem ? mapKeyToItem.get(item.data.parentItem) : null;
+
+  function getParentTags(parent: ZoteroItem | ItemTableWrite | null | undefined): any[] | undefined {
+    if (!parent) return undefined;
+    if ('data' in parent && parent.data && Array.isArray(parent.data.tags)) {
+      return parent.data.tags;
+    }
+    if ('tags' in parent && Array.isArray(parent.tags)) {
+      return parent.tags;
+    }
+    return undefined;
+  }
+
   if (item.data.itemType != 'Attachment') {
     return false;
   }
@@ -493,28 +506,46 @@ function itemChecks(item: ZoteroItem, args: ZoteroTypes.ISyncToLocalDBArgs): boo
   if (args.allfiles) {
     return true;
   }
-  if (!item.data.tags || !item.data.tags.find((tag) => tag.tag == '_publish' || tag.tag == 'publishPDF')) {
+  const parentTags = getParentTags(mappedParentItem);
+  if (
+    !item.data.tags ||
+    !(
+      item.data.tags.find((tag) => tag.tag == '_publish' || tag.tag == 'publishPDF' || tag.tag == 'ai-imported')
+      || (parentTags && parentTags.find((tag) => tag.tag == 'ai-imported'))
+    )
+  ) {
     return false;
   }
   return true;
 }
 
-/**
- * Removes non-ASCII characters from a string
- * @param {string} input - The string to clean
- * @returns {string} The cleaned string containing only ASCII characters
- */
-function cleanString(input: string): string {
-  let output = '';
+// /**
+//  * Removes non-ASCII characters from a string
+//  * @param {string} input - The string to clean
+//  * @returns {string} The cleaned string containing only ASCII characters
+//  */
+// function cleanString(input: string): string {
+//   let output = '';
 
-  for (let i = 0; i < input.length; i++) {
-    if (mappingTable[input.charAt(i)]) {
-      output += mappingTable[input.charAt(i)];
-    } else if (input.charCodeAt(i) < 127 && input.charCodeAt(i) >= 1) {
-      output += input.charAt(i);
-    }
-  }
-  return output;
+//   for (let i = 0; i < input.length; i++) {
+//     if (mappingTable[input.charAt(i)]) {
+//       output += mappingTable[input.charAt(i)];
+//     } else if (input.charCodeAt(i) < 127 && input.charCodeAt(i) >= 1) {
+//       output += input.charAt(i);
+//     }
+//   }
+//   return output;
+// }
+
+
+/**
+ * Cleans a string by replacing non-ASCII characters with their Unicode escape sequences
+ * @param {string} text - The string to clean
+ * @returns {string} The cleaned string
+ */
+function cleanStringNew(text: string): string {
+  return text.replace(/[\u0000\uFFFD\uFFFE\uFFFF\u0001-\u0008\u000B-\u000C\u000E-\u001F]/g,
+    match => `\\u${match.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
 
 /**
@@ -747,10 +778,10 @@ async function processFile(
 
   const urls = await uploadToSupabase(item, groupId, PDFData, coverData, supabaseClient);
   if (!urls) return;
-  
-  itemObj.url = cleanString(urls.pdfUrl);
-  itemObj.fullTextPDF = cleanString(text);
-  itemObj.PDFCoverPageImage = cleanString(urls.coverUrl);
+
+  itemObj.url = cleanStringNew(urls.pdfUrl);
+  itemObj.fullTextPDF = cleanStringNew(text);
+  itemObj.PDFCoverPageImage = cleanStringNew(urls.coverUrl);
   itemObj.PDFCoverPageWidth = 2550;
   itemObj.PDFCoverPageHeight = Math.round(2550 / ratio);
 }
@@ -806,9 +837,9 @@ async function handleCollections(
   const originalGroupId = zoteroLib.config.group_id;
   zoteroLib.config.group_id = groupId;
   console.log(`lastVersion: ${lastVersion}`);
-  const fetchedCollections = await zoteroLib.all(`/collections?since=${lastVersion}&includeTrashed=1`);
+  const fetchedCollections = await zoteroLib.all(`/collections?since=${0}&includeTrashed=1`);
 
-  // fs.writeFileSync(`fetchedCollections-${groupId}.json`, JSON.stringify(fetchedCollections, null, 2));
+  fs.writeFileSync(`fetchedCollections-${groupId}.json`, JSON.stringify(fetchedCollections, null, 2));
 
   zoteroLib.config.group_id = originalGroupId;
 
@@ -1003,6 +1034,7 @@ export async function saveZoteroItems(
   offlineItemsVersion: Record<string, number> | null,
 ): Promise<void> {
   console.log("all_files is ", config.allfiles);
+  fs.writeFileSync('allFetchedItems.json', JSON.stringify(allFetchedItems, null, 2));
   const supabaseClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE!);
 
   if (config.clearbucket) {
@@ -1024,6 +1056,20 @@ export async function saveZoteroItems(
 
   let uploadPromises: Promise<void>[] = [];
 
+  for (const item of allItems) {
+    mapKeyToItem.set(item.key, item);
+  }
+
+  for (const chunk of allFetchedItems) {
+    if (!Array.isArray(chunk)) {
+      console.error('Invalid chunk structure:', chunk);
+      continue;
+    }
+    for (const item of chunk) {
+      mapKeyToItem.set(item.key, item);
+    }
+  }
+
   for (const chunk of allFetchedItems) {
     if (!Array.isArray(chunk)) {
       console.error('Invalid chunk structure:', chunk);
@@ -1031,12 +1077,12 @@ export async function saveZoteroItems(
     }
     for (const item of chunk) {
       if (matchItemType(item)) {
-        const itemObj = await createItem(item, allFetchedItems);
+        const itemObj = await createItem(item);
         items.push(itemObj);
 
         // console.log(`${items.length} items processed`);
 
-        if (itemChecks(item, config)) {
+        if (itemChecks(item, config, allFetchedItems)) {
           uploadPromises.push(processFile(item, itemObj, groupId, zoteroLib, allItems, supabaseClient));
         }
 
@@ -1053,6 +1099,26 @@ export async function saveZoteroItems(
   await Promise.all(uploadPromises);
 
   if (languages.length > 0) await db.insert(language).values(languages).onConflictDoNothing();
+
+  const replaces: Map<string, string> = new Map();
+
+  for (const item of items) {
+    const relationsObj = ((item.relations as any) || {}) as Record<string, string>;
+    if (relationsObj["dc:replaces"]) {
+      const replacesKey = relationsObj["dc:replaces"].split('/').pop();
+      if (replacesKey) {
+        replaces.set(replacesKey, item.key);
+      }
+    }
+  }
+
+  for (const item of items) {
+    if (replaces.has(item.key)) {
+      const relationsObj = ((item.relations as any) || {}) as Record<string, string>;
+      relationsObj["dc:replacedBy"] = `http://zotero.org/groups/${groupId}/items/${replaces.get(item.key)!}`;
+      item.relations = relationsObj;
+    }
+  }
 
   if (items.length > 0) {
     console.log(`Adding ${items.length} items`);
