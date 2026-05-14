@@ -3731,7 +3731,7 @@ const syncToLocalDB = async (args: ZoteroTypes.ISyncToLocalDBArgs, zoteroLib: an
   } else {
     console.log('Everything already synced!!! Hurray!!!');
     await updateLastSyncedAt();
-    fs.writeFileSync(path.join("/home/ubuntu", 'SKIP_INDEX'), '', { flag: 'w' });
+    fs.writeFileSync(path.join("/root", 'SKIP_INDEX'), '', { flag: 'w' });
   }
 
   const syncEnd = Date.now();

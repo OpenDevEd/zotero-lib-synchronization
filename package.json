@@ -28,7 +28,8 @@
     "publish:minor": "npm version minor; npm publish; git push --tags",
     "publish:major": "npm version major; npm publish; git push --tags",
     "release": "standard-version",
-    "docs": "typedoc"
+    "docs": "typedoc",
+    "pm2": "pm2 start --no-autorestart --name zoterolib-sync-$(date +%s) npm -- run dev --"
   },
   "standard-version": {
     "skip": {

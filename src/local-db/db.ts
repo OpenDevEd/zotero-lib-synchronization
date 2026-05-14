@@ -30,7 +30,8 @@ const DELETE_BATCH_SIZE = 100;
 const STATIC_STATUS_UUID = '00000000-0000-0000-0000-000000000000';
 const mapKeyToItem = new Map<string, ZoteroItem | ItemTableWrite>();
 
-const ZOTERO_URI_REGEX = /(?:https?:\/\/(?:www\.)?zotero\.org\/|zotero:\/\/select\/)(?:library|(?:(?:groups|users)\/[0-9]+))\/items\/([A-Z0-9]+)/g;
+const ZOTERO_URI_REGEX =
+  /(?:https?:\/\/(?:www\.)?zotero\.org\/|zotero:\/\/select\/)(?:library|(?:(?:groups|users)\/[0-9]+))\/items\/([A-Z0-9]+)/g;
 
 // Helper to extract keys from a note string
 function extractCitedKeys(noteContent: string | null | undefined): string[] {
@@ -244,9 +245,9 @@ const collectionColumns = Object.values(getTableColumns(collection)).map((col: a
 export async function getAllGroups(): Promise<GroupTableRead[]> {
   const groups = await db.query.group.findMany();
 
-  // const group = groups.find((group) => group.externalId == 2129771);
+  // const group = groups.find((group) => group.externalId == 2405685);
   // if (group) {
-  //   group.itemsVersion = (group.itemsVersion ? group.itemsVersion : 1) - 1;
+  //   group.itemsVersion = (group.itemsVersion ?? 0) - 100;
   // }
 
   return groups;
@@ -310,7 +311,7 @@ function matchItemType(item: ZoteroItem): boolean {
  */
 async function createItem(item: ZoteroItem): Promise<ItemTableRead> {
   const obj = {} as ItemTableWrite;
-  console.log("creating", item.key)
+  console.log('creating', item.key);
   obj.key = item.key;
   obj.version = item.version;
   obj.groupExternalId = Number(item.library.id);
@@ -524,8 +525,8 @@ function itemChecks(item: ZoteroItem, args: ZoteroTypes.ISyncToLocalDBArgs, item
   if (
     !item.data.tags ||
     !(
-      item.data.tags.find((tag) => tag.tag == '_publish' || tag.tag == 'publishPDF' || tag.tag == 'ai-imported')
-      || (parentTags && parentTags.find((tag) => tag.tag == 'ai-imported'))
+      item.data.tags.find((tag) => tag.tag == '_publish' || tag.tag == 'publishPDF' || tag.tag == 'ai-imported') ||
+      (parentTags && parentTags.find((tag) => tag.tag == 'ai-imported'))
     )
   ) {
     return false;
@@ -551,15 +552,16 @@ function itemChecks(item: ZoteroItem, args: ZoteroTypes.ISyncToLocalDBArgs, item
 //   return output;
 // }
 
-
 /**
  * Cleans a string by replacing non-ASCII characters with their Unicode escape sequences
  * @param {string} text - The string to clean
  * @returns {string} The cleaned string
  */
 function cleanStringNew(text: string): string {
-  return text.replace(/[\u0000\uFFFD\uFFFE\uFFFF\u0001-\u0008\u000B-\u000C\u000E-\u001F]/g,
-    match => `\\u${match.charCodeAt(0).toString(16).padStart(4, '0')}`);
+  return text.replace(
+    /[\u0000\uFFFD\uFFFE\uFFFF\u0001-\u0008\u000B-\u000C\u000E-\u001F]/g,
+    (match) => `\\u${match.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  );
 }
 
 /**
@@ -580,7 +582,12 @@ async function checkExistingFile(
 ): Promise<boolean> {
   if (!dbItem) return true;
 
-  if (dbItem.md5 == item.data.md5 && dbItem.mtime == item.data.mtime && dbItem.filename == item.data.filename && dbItem.PDFCoverPageImage != null) {
+  if (
+    dbItem.md5 == item.data.md5 &&
+    dbItem.mtime == item.data.mtime &&
+    dbItem.filename == item.data.filename &&
+    dbItem.PDFCoverPageImage != null
+  ) {
     console.log(`• ERROR [${item.data.parentItem} / ${item.key}] File already exists in database`);
     return false;
   }
@@ -825,8 +832,8 @@ function createCollection(collection: any): CollectionTableWrite {
       obj.deleted = collection.data.deleted ? 1 : 0;
     } else if (column in collection.data) {
       obj[column] = collection.data[column];
-      if (column == "url") {
-        console.log("IN THE FOR EACH LOOP Setting url to ", collection.data[column])
+      if (column == 'url') {
+        console.log('IN THE FOR EACH LOOP Setting url to ', collection.data[column]);
       }
     }
   });
@@ -898,7 +905,6 @@ async function handleCollections(
 }
 
 export async function createStatus(supabaseClient: SupabaseClient, groupId: string) {
-
   const allItems = await db.query.item.findMany();
 
   // let allRIS = ``;
@@ -907,7 +913,9 @@ export async function createStatus(supabaseClient: SupabaseClient, groupId: stri
   // const promises: Promise<void>[] = [];
   // const errors: string[] = [];
 
-  let totalRecords = allItems.filter((item) => item.itemType != 'Attachment' && item.itemType != 'Note' && !item.deleted).length;
+  let totalRecords = allItems.filter(
+    (item) => item.itemType != 'Attachment' && item.itemType != 'Note' && !item.deleted,
+  ).length;
 
   // for (const item of allItems) {
   //   promises.push(
@@ -1047,7 +1055,7 @@ export async function saveZoteroItems(
   config: ZoteroTypes.ISyncToLocalDBArgs,
   offlineItemsVersion: Record<string, number> | null,
 ): Promise<void> {
-  console.log("all_files is ", config.allfiles);
+  console.log('all_files is ', config.allfiles);
   fs.writeFileSync('allFetchedItems.json', JSON.stringify(allFetchedItems, null, 2));
   const supabaseClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE!);
 
@@ -1062,12 +1070,20 @@ export async function saveZoteroItems(
   const allItems = await db.query.item.findMany();
 
   // --- CITATION GRAPH BUILDING START ---
-  console.log("Building Citation Graph...");
-  const citesMap = new Map<string, Set<string>>();   // ParentKey -> Set<CitedKey>
+  console.log('Building Citation Graph...');
+  const citesMap = new Map<string, Set<string>>(); // ParentKey -> Set<CitedKey>
   const citedByMap = new Map<string, Set<string>>(); // TargetKey -> Set<ParentKey>
+
+  // Helper to verify key existence (prevent orphans)
+  const allKnownKeys = new Set<string>();
+  allItems.forEach((i) => allKnownKeys.add(i.key));
+  allFetchedItems.flat().forEach((i) => allKnownKeys.add(i.key));
 
   // Helper to register a citation
   const registerCitation = (sourceKey: string, targetKey: string) => {
+    // Prevent orphans: only register if both keys exist in our universe
+    if (!allKnownKeys.has(sourceKey) || !allKnownKeys.has(targetKey)) return;
+
     if (!citesMap.has(sourceKey)) citesMap.set(sourceKey, new Set());
     citesMap.get(sourceKey)!.add(targetKey);
 
@@ -1075,39 +1091,82 @@ export async function saveZoteroItems(
     citedByMap.get(targetKey)!.add(sourceKey);
   };
 
+  // 0. Fetch Collections (Always)
+  // User requested handleCollections to be always called and used as source of truth
+  collections = await handleCollections(groupId, zoteroLib, offlineItemsVersion || {});
+
   // A. Process Existing DB Notes first
   for (const item of allItems) {
+    if (item.deleted) continue;
     // Check if it's a note with _cites tag
     // Note: Adjust 'itemType' check if your DB stores it differently (e.g. lowercase)
     if (item.itemType === 'Note' && item.parentItem && item.tags?.includes('_cites')) {
       const keys = extractCitedKeys(item.note);
-      keys.forEach(k => registerCitation(item.parentItem!, k));
+      keys.forEach((k) => registerCitation(item.parentItem!, k));
     }
   }
 
   // B. Process New/Updated Notes from Fetch (Overwrites/Adds to DB info)
-  // We need to clear old citations for these parents first if we want to be strictly correct, 
-  // but for additive sync, just processing is usually fine. 
-  // To be safe: If we see a parent in fetched items, we might want to reset its citations.
-  // For now, let's just add.
   for (const chunk of allFetchedItems) {
     for (const item of chunk) {
-      if (
-        item.data.itemType === 'note' && 
-        item.data.parentItem && 
-        item.data.tags?.some(t => t.tag === '_cites')
-      ) {
+      if (item.data.deleted) continue;
+      if (item.data.itemType === 'note' && item.data.parentItem && item.data.tags?.some((t) => t.tag === '_cites')) {
         const keys = extractCitedKeys(item.data.note);
-        keys.forEach(k => registerCitation(item.data.parentItem!, k));
+        keys.forEach((k) => registerCitation(item.data.parentItem!, k));
       }
     }
   }
-  console.log("Citation Graph Built.");
-  // --- CITATION GRAPH BUILDING END ---
 
-  if (offlineItemsVersion) {
-    collections = await handleCollections(groupId, zoteroLib, offlineItemsVersion);
+  // C. Process _References Folders
+  // Build a map of CollectionKey -> Set<ItemKey>
+  const collectionToItems = new Map<string, Set<string>>();
+
+  // Helper to add item to collection map
+  const addItemToCollectionMap = (itemKey: string, itemCollections: string[] | null) => {
+    if (!itemCollections) return;
+    for (const colKey of itemCollections) {
+      if (!collectionToItems.has(colKey)) collectionToItems.set(colKey, new Set());
+      collectionToItems.get(colKey)!.add(itemKey);
+    }
+  };
+
+  // Populate map from DB items
+  for (const item of allItems) {
+    if (item.deleted) continue;
+    // Assuming 'collections' column exists and is string[] as per user description
+    addItemToCollectionMap(item.key, item.collections);
   }
+
+  // Populate map from Fetched items (might override or add to DB info)
+  for (const chunk of allFetchedItems) {
+    for (const item of chunk) {
+      if (item.data.deleted) continue;
+      addItemToCollectionMap(item.key, item.data.collections);
+    }
+  }
+
+  // Iterate collections to find _References
+  for (const col of collections) {
+    // User specified "✅_References" folder.
+    if (col.name === '✅_References') {
+      const parentColKey = col.parentCollection;
+      if (!parentColKey) continue;
+
+      const citingItems = collectionToItems.get(parentColKey);
+      const citedItems = collectionToItems.get(col.key);
+
+      if (citingItems && citedItems) {
+        for (const citingKey of citingItems) {
+          for (const citedKey of citedItems) {
+            registerCitation(citingKey, citedKey);
+          }
+        }
+      }
+    }
+  }
+
+  console.log('Citation Graph Built.');
+  // --- CITATION GRAPH BUILDING END ---
 
   // fs.writeFileSync('lastModifiedVersion.json', JSON.stringify(lastModifiedVersion, null, 2));
   // fs.writeFileSync('allFetchedItems.json', JSON.stringify(allFetchedItems, null, 2));
@@ -1142,7 +1201,9 @@ export async function saveZoteroItems(
         let rels: any = {};
         try {
           rels = itemObj.relations ? JSON.parse(itemObj.relations as string) : {};
-        } catch (e) { rels = {}; }
+        } catch (e) {
+          rels = {};
+        }
 
         // Inject Cites
         if (citesMap.has(item.key)) {
@@ -1182,8 +1243,8 @@ export async function saveZoteroItems(
 
   for (const item of items) {
     const relationsObj = ((item.relations as any) ? JSON.parse(item.relations as string) : {}) as Record<string, any>;
-    if (relationsObj["dc:replaces"]) {
-      const dcReplaces = relationsObj["dc:replaces"];
+    if (relationsObj['dc:replaces']) {
+      const dcReplaces = relationsObj['dc:replaces'];
       const replacesList = Array.isArray(dcReplaces) ? dcReplaces : [dcReplaces];
       for (const replaceUri of replacesList) {
         if (typeof replaceUri === 'string') {
@@ -1199,7 +1260,7 @@ export async function saveZoteroItems(
   for (const item of items) {
     if (replaces.has(item.key)) {
       const relationsObj = ((item.relations as any) ? JSON.parse(item.relations as string) : {}) as Record<string, any>;
-      relationsObj["dc:replacedBy"] = `http://zotero.org/groups/${groupId}/items/${replaces.get(item.key)!}`;
+      relationsObj['dc:replacedBy'] = `http://zotero.org/groups/${groupId}/items/${replaces.get(item.key)!}`;
       item.relations = JSON.stringify(relationsObj);
     }
   }
@@ -1221,15 +1282,15 @@ export async function saveZoteroItems(
   }
 
   // --- RETROACTIVE UPDATES START ---
-  // We need to update items that are NOT in the current 'items' batch 
+  // We need to update items that are NOT in the current 'items' batch
   // but have new 'citedBy' or 'cites' data calculated from the graph.
-  
-  const itemsInBatch = new Set(items.map(i => i.key));
+
+  const itemsInBatch = new Set(items.map((i) => i.key));
   const itemsToUpdate: ItemTableWrite[] = [];
 
-  // Check all items in our maps
-  const allKeysToCheck = new Set([...citesMap.keys(), ...citedByMap.keys()]);
-  
+  // Check all items in our maps AND all existing DB items (to handle removals)
+  const allKeysToCheck = new Set([...citesMap.keys(), ...citedByMap.keys(), ...allItems.map((i) => i.key)]);
+
   for (const key of allKeysToCheck) {
     if (itemsInBatch.has(key)) continue; // Already handled
 
@@ -1243,13 +1304,15 @@ export async function saveZoteroItems(
     // Parse existing DB relations
     let currentRels: any = {};
     if ('data' in dbItem) {
-        // It's a ZoteroItem
-        currentRels = dbItem.data.relations || {};
+      // It's a ZoteroItem
+      currentRels = dbItem.data.relations || {};
     } else {
-        // It's an ItemTableWrite / Read
-        try {
-             currentRels = typeof dbItem.relations === 'string' ? JSON.parse(dbItem.relations) : dbItem.relations || {};
-        } catch (e) { currentRels = {}; }
+      // It's an ItemTableWrite / Read
+      try {
+        currentRels = typeof dbItem.relations === 'string' ? JSON.parse(dbItem.relations) : dbItem.relations || {};
+      } catch (e) {
+        currentRels = {};
+      }
     }
 
     // Check if change is needed (simple JSON stringify comparison)
@@ -1261,23 +1324,23 @@ export async function saveZoteroItems(
     if (oldCitesStr !== newCitesStr || oldCitedByStr !== newCitedByStr) {
       currentRels['cites'] = newCites;
       currentRels['citedBy'] = newCitedBy;
-      
+
       // Create a partial update object
-      // We need to cast or construct a valid ItemTableWrite. 
+      // We need to cast or construct a valid ItemTableWrite.
       // Since we are using onConflictDoUpdate, we can just push the key and the new relations.
       // IMPORTANT: Ensure other required fields aren't missing if the DB enforces them on insert-for-update.
       // Usually for update, we just need the PK and the fields to change.
-      
-      // However, your 'item' table definition might require some fields. 
+
+      // However, your 'item' table definition might require some fields.
       // Assuming 'key' is unique/PK and we use onConflict.
-      
+
       // Safe bet: Clone the DB item and update relations
       const updateObj = { ...dbItem } as ItemTableWrite;
       updateObj.relations = JSON.stringify(currentRels);
       // Ensure dates are Date objects if they were strings
       if (typeof updateObj.dateAdded === 'string') updateObj.dateAdded = new Date(updateObj.dateAdded);
       if (typeof updateObj.dateModified === 'string') updateObj.dateModified = new Date(updateObj.dateModified);
-      
+
       itemsToUpdate.push(updateObj);
     }
   }
@@ -1293,7 +1356,7 @@ export async function saveZoteroItems(
           target: [item.key],
           set: {
             relations: sql`excluded.relations`,
-            updatedAt: sql`now()`
+            updatedAt: sql`now()`,
           },
         });
     }

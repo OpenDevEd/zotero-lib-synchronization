@@ -1,6 +1,7 @@
 import { pgEnum } from "drizzle-orm/pg-core";
 
 export const itemType = pgEnum("itemType", [
+	"Annotation",
 	"Artwork",
 	"Attachment",
 	"AudioRecording",
@@ -11,9 +12,11 @@ export const itemType = pgEnum("itemType", [
 	"Case",
 	"ComputerProgram",
 	"ConferencePaper",
+	"Dataset",
 	"DictionaryEntry",
 	"Document",
 	"Email",
+	"Preprint",
 	"EncyclopediaArticle",
 	"Film",
 	"ForumPost",
@@ -24,7 +27,6 @@ export const itemType = pgEnum("itemType", [
 	"Letter",
 	"MagazineArticle",
 	"Manuscript",
-	"Preprint",
 	"Map",
 	"NewspaperArticle",
 	"Note",
@@ -33,6 +35,7 @@ export const itemType = pgEnum("itemType", [
 	"Presentation",
 	"RadioBroadcast",
 	"Report",
+	"Standard",
 	"Statute",
 	"TvBroadcast",
 	"Thesis",
