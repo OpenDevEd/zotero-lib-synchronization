@@ -472,19 +472,24 @@ async function retryOperation<T>(
  * @returns {Promise<boolean>} True if download successful, false otherwise
  */
 async function downloadFile(item: ZoteroItem, groupId: string, zoteroLib: Zotero): Promise<boolean> {
-  if (fs.existsSync(`temp/${item.key}.pdf`)) {
-    fs.unlinkSync(`temp/${item.key}.pdf`);
+  const filename = `temp/${item.key}.pdf`;
+  if (fs.existsSync(filename)) {
+    fs.unlinkSync(filename);
   }
 
-  return (
-    (await retryOperation(() =>
-      zoteroLib.download_attachment({
-        key: item.key,
-        filename: `temp/${item.key}.pdf`,
-        group_id: groupId,
-      }),
-    )) === null
+  // download_attachment returns `null` on success AND retryOperation returns
+  // `null` when every attempt threw — checking `=== null` (the previous
+  // implementation) reports success in both cases. Verify the actual file
+  // exists on disk instead.
+  await retryOperation(() =>
+    zoteroLib.download_attachment({
+      key: item.key,
+      filename,
+      group_id: groupId,
+    }),
   );
+
+  return fs.existsSync(filename);
 }
 
 /**

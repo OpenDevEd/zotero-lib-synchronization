@@ -2804,6 +2804,11 @@ class Zotero {
       return this.message(1, 'Failed to download attachment');
     }
 
+    // Ensure parent directory exists — createWriteStream does not create it,
+    // and a missing dir surfaces as an async error inside the pipe that older
+    // callers swallow (cf. retryOperation in local-db/db.ts).
+    fs.mkdirSync(path.dirname(filename), { recursive: true });
+
     const writer = fs.createWriteStream(filename);
 
     res.data.pipe(writer);
