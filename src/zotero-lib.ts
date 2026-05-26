@@ -2803,6 +2803,9 @@ class Zotero {
     if (!res) {
       return this.message(1, 'Failed to download attachment');
     }
+    if (!filename) {
+      return this.message(1, 'filename is required');
+    }
 
     // Ensure parent directory exists — createWriteStream does not create it,
     // and a missing dir surfaces as an async error inside the pipe that older
