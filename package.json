@@ -15,6 +15,7 @@
     "lib": "node ./build/zotero-lib.js",
     "prisma:generate": "prisma generate",
     "test:cli_to_javascript": "node ./tests/test_cli_to_javascript.js",
+    "test:sync-item-types": "node --require ts-node/register --test tests/test_sync_item_types.js",
     "test": "jest",
     "legacy:test": "node ./tests/*.js",
     "legacy:test_create": "node ./tests/test_create.js",
